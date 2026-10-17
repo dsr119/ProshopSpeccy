@@ -1,0 +1,68 @@
+# Defaults, open decisions and data model
+
+## Provisional defaults (from the build brief; easy to change)
+
+| Default | Where it lives |
+| --- | --- |
+| One current fit per customer in the UI, with full revision history. The `fits` table already allows more named fits later (`is_primary = false`). | `fits_one_primary_per_customer` index; `getCurrentFit()` |
+| Name required; phone and notes optional. Search matches partial names in any case (every word must appear) and phone digits in any format. Duplicates are warned about, never blocked; phones need not be unique. | `search_customers`, `find_possible_duplicates` |
+| All active staff of a shop can view and edit. Admins manage membership. | `staff_memberships`, `admin_set_staff` |
+| Right/left hand and thumb-in/no-thumb are recorded and shown as labels. The template is **never mirrored** for left-handers. | `FitIdentity`, `overlayConfig.ts` |
+| Photos are reference only; uploading never creates or verifies measurements. | `PhotosPage` |
+| No span conversions and no derived values. Cut-to-cut and actual-cut are stored independently. | schema |
+| No per-ball layout tracking. | — |
+| Hole sizes are numeric inches (fractions or decimals). Oval and insert details are free text. | `FIELDS` in `src/measurements/schema.ts` |
+| Oval angle is in degrees and may be negative; all other numbers are unsigned. | `kind: 'angle'` |
+| Photo rotation is stored as metadata and applied on display; the uploaded file is kept byte-for-byte. | `spec_photos.rotation` |
+| Photos are 15 MB max, JPEG/PNG/WebP only (enforced by the bucket too). HEIC gets a clear "not supported yet" message. | migration `…300_spec_photos.sql`, `checkPhotoFile()` |
+
+## Open owner decisions
+
+1. **Template orientation and finger mapping.** Currently *provisional*: viewed from above the ball with the thumb
+   hole toward the bowler; left upper hole = **middle**, right upper hole = **ring**, same for both hands. A legend on
+   every sheet says so. Change `FINGER_MAPPING` in `src/template/overlayConfig.ts` (one file) once confirmed.
+2. **Hole-size and oval notation.** If the shop uses drill letters or other notation for hole sizes, the hole fields
+   would move from numeric to text. Oval is text today.
+3. **Multiple named fits at launch?** The database supports it; the UI shows one.
+4. **Connecting to an existing customer database?** Not built; customers are created here.
+5. **Signed oval angle / direction convention** for the thumb oval angle.
+
+## Data model
+
+- `shops`, `staff_memberships(shop_id, user_id, role, active)` – who can see what.
+- `customers` – name, phone, notes, generated `name_search` and `phone_digits` (trigram-indexed for search),
+  `last_spec_at`.
+- `fits` – one per customer for now; `current_revision_id` and `lock_version` (optimistic concurrency).
+- `fit_revisions` – immutable snapshots (`snapshot` JSONB, `schema_version = 1`), unique `revision_number` per fit,
+  `author_id` from the signed-in user, optional `change_note`, `restored_from_revision_id`.
+- `spec_photos` – metadata for files in the private `spec-photos` bucket at
+  `<shop_id>/<customer_id>/<photo_id>/original.<ext>`; optional link to a revision.
+
+Composite foreign keys keep every row in the same shop as its parent, and the current revision must belong to its fit.
+
+### Measurement snapshot (schema version 1)
+
+Every key is always present; `null` means *not recorded*, which is different from a measured `0`.
+
+- Numbers: `{"entered": "4 3/8", "n": 35, "d": 8}` – the notation as typed plus an exact reduced fraction
+  (no floating point). Accepted input: `4 3/8`, `4-3/8`, `3/8`, `4.375`, `.375`, `4`, optional `"`/`in`/`°`.
+- Pitches add `"dir"`: `left`/`right` (lateral) or `forward`/`reverse`; `none` only for zero.
+- Text fields are strings; `hand` is `right`/`left`; `thumb_mode` is `thumb_in`/`no_thumb`.
+
+Field keys: `hand, thumb_mode, fit_label, middle_hole, middle_oval, middle_lateral_pitch, middle_fr_pitch, ring_hole,
+ring_oval, ring_lateral_pitch, ring_fr_pitch, middle_cut_to_cut, ring_cut_to_cut, middle_actual_cut, ring_actual_cut,
+thumb_hole, thumb_oval, thumb_lateral_pitch, thumb_fr_pitch, thumb_oval_angle, finger_insert_details,
+thumb_system_details, fitting_notes`.
+
+The browser validates for fast feedback, but the database re-parses and validates every save
+(`private.normalize_fit_snapshot`), so the two parsers are tested against the same cases.
+
+### Saving
+
+`save_fit_revision(customer, expected_lock_version, snapshot, note)` runs in one transaction: lock the fit row, compare
+the lock version (mismatch → HTTP 409 conflict with who saved), skip if nothing changed, insert the revision, move the
+current pointer, bump the lock version. `restore_fit_revision` does the same with an old snapshot. Clients cannot write
+`fits` or `fit_revisions` directly, and revisions cannot be updated or deleted.
+
+No-thumb mode keeps any saved thumb and span values in the snapshot (shown as N/A on the sheet and as
+"saved, not applicable" in the text view); switching back to thumb-in shows them again.
