@@ -56,3 +56,17 @@ export function slot(page: Page, field: string) {
 export function dirSlot(page: Page, field: string, dir: string) {
   return page.locator(`.sheet [data-field="${field}"][data-dir="${dir}"]`);
 }
+
+/** Picks a span such as "4 3/8" on its two wheels: whole inches, then the fraction. */
+export async function pickSpan(page: Page, field: string, value: string) {
+  const [whole, fraction = '0'] = value.split(' ');
+  await page.locator(`#field-${field}`).selectOption(whole);
+  if (fraction !== '0') await page.locator(`#field-${field}-fraction`).selectOption(fraction);
+}
+
+/** Expects a span's two wheels to show this value. */
+export async function expectSpan(page: Page, field: string, value: string) {
+  const [whole, fraction = '0'] = value.split(' ');
+  await expect(page.locator(`#field-${field}`)).toHaveValue(whole);
+  await expect(page.locator(`#field-${field}-fraction`)).toHaveValue(fraction);
+}

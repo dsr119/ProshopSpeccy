@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createCustomer, loginAsStaff, unique } from './helpers';
+import { createCustomer, loginAsStaff, pickSpan, unique } from './helpers';
 
 // Long but valid values, to prove nothing clips or overlaps.
 const LONG: Record<string, string | [string, string]> = {
@@ -9,14 +9,14 @@ const LONG: Record<string, string | [string, string]> = {
   middle_oval: 'wide 1/16 oval toward palm',
   ring_oval: '1/32',
   thumb_oval: '3/64 oval, 45 deg',
-  middle_cut_to_cut: '4 63/64',
-  ring_cut_to_cut: '4 31/32',
+  middle_cut_to_cut: '5 15/16',
+  ring_cut_to_cut: '6',
   middle_actual_cut: '5 1/16',
   ring_actual_cut: '123456 99/100',
   middle_lateral_pitch: ['1 15/16', 'right'],
   middle_fr_pitch: ['1/4', 'forward'],
   ring_lateral_pitch: ['0', 'none'],
-  ring_fr_pitch: ['1 31/32', 'reverse'],
+  ring_fr_pitch: ['1 15/16', 'reverse'],
   thumb_lateral_pitch: ['3/8', 'left'],
   thumb_fr_pitch: ['1 1/4', 'reverse'],
   thumb_oval_angle: '-135.5',
@@ -32,6 +32,7 @@ async function seedLongValues(page: Page) {
     const [text, dir] = Array.isArray(v) ? v : [v, undefined];
     const input = page.locator(`#field-${field}`);
     if (dir) await input.selectOption(text);
+    else if (field.endsWith('_cut_to_cut')) await pickSpan(page, field, text);
     else await input.fill(text);
     if (dir) await page.locator(`#field-${field} + select`).selectOption(dir);
   }

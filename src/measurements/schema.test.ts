@@ -6,6 +6,11 @@ import {
   formatValue,
   isNotApplicable,
   PITCH_AMOUNTS,
+  SPAN_FRACTIONS,
+  SPAN_WHOLES,
+  decimalHint,
+  joinSpan,
+  splitSpan,
   snapshotToDraft,
   snapshotToPayload,
   validateDraft,
@@ -39,15 +44,34 @@ describe('measurement schema', () => {
     expect(formatValue('span_type', s.span_type)).toBe('Cut to Outer');
   });
 
-  it('limits pitch to 0–2 inches in 1/32 steps', () => {
-    expect(PITCH_AMOUNTS).toHaveLength(65);
-    expect(PITCH_AMOUNTS.slice(0, 5)).toEqual(['0', '1/32', '1/16', '3/32', '1/8']);
-    expect(PITCH_AMOUNTS.slice(-3)).toEqual(['1 15/16', '1 31/32', '2']);
+  it('limits pitch to 0–2 inches in 1/16 steps', () => {
+    expect(PITCH_AMOUNTS).toHaveLength(33);
+    expect(PITCH_AMOUNTS.slice(0, 5)).toEqual(['0', '1/16', '1/8', '3/16', '1/4']);
+    expect(PITCH_AMOUNTS.slice(-3)).toEqual(['1 7/8', '1 15/16', '2']);
     expect(validateDraft(draftWith({ middle_fr_pitch: { text: '2', dir: 'forward' } }))).toEqual({});
     expect(validateDraft(draftWith({ middle_fr_pitch: { text: '0.125', dir: 'reverse' } }))).toEqual({});
-    expect(validateDraft(draftWith({ ring_lateral_pitch: { text: '2 1/32', dir: 'left' } })).ring_lateral_pitch).toMatch(/between 0 and 2/);
-    expect(validateDraft(draftWith({ thumb_fr_pitch: { text: '1/64', dir: 'forward' } })).thumb_fr_pitch).toMatch(/1\/32/);
+    expect(validateDraft(draftWith({ ring_lateral_pitch: { text: '2 1/16', dir: 'left' } })).ring_lateral_pitch).toMatch(/between 0 and 2/);
+    expect(validateDraft(draftWith({ thumb_fr_pitch: { text: '1/32', dir: 'forward' } })).thumb_fr_pitch).toMatch(/1\/16/);
     for (const a of PITCH_AMOUNTS) expect(validateDraft(draftWith({ middle_lateral_pitch: { text: a, dir: 'left' } }))).toEqual({});
+  });
+
+  it('limits spans to 2–6 inches in 1/16 steps, picked on two wheels', () => {
+    expect(SPAN_WHOLES).toEqual(['2', '3', '4', '5', '6']);
+    expect(SPAN_FRACTIONS.slice(0, 3)).toEqual(['0', '1/16', '1/8']);
+    expect(splitSpan('4 3/8')).toEqual({ whole: '4', fraction: '3/8' });
+    expect(splitSpan('5')).toEqual({ whole: '5', fraction: '0' });
+    expect(splitSpan('7')).toBeNull();
+    expect(joinSpan('4', '3/8')).toBe('4 3/8');
+    expect(joinSpan('4', '0')).toBe('4');
+    expect(joinSpan('6', '1/2')).toBe('6');
+    expect(joinSpan('', '1/2')).toBe('');
+    const withSpan = (text: string) => validateDraft(draftWith({ span_type: { text: 'cut_to_cut' }, middle_cut_to_cut: { text } })).middle_cut_to_cut;
+    expect(withSpan('4 15/16')).toBeUndefined();
+    expect(withSpan('1 7/8')).toMatch(/between 2 and 6/);
+    expect(withSpan('6 1/16')).toMatch(/between 2 and 6/);
+    expect(withSpan('4 1/32')).toMatch(/1\/16/);
+    expect(decimalHint('1/16')).toBe('0.062');
+    expect(decimalHint('3/16')).toBe('0.188');
   });
 
   it('requires a direction for non-zero pitch and allows neutral zero', () => {

@@ -151,26 +151,67 @@ export function isPitchKind(kind: FieldKind): boolean {
   return kind === 'pitch_lateral' || kind === 'pitch_fr';
 }
 
-/** Pitches run from 0 to 2 inches in steps of 1/32 (mirrored in private.normalize_fit_snapshot). */
+/** Pitches run from 0 to 2 inches and spans from 2 to 6, both in steps of 1/16 (mirrored in private.normalize_fit_snapshot). */
 export const PITCH_MAX = 2;
-export const PITCH_STEP_DENOMINATOR = 32;
+export const PITCH_STEP_DENOMINATOR = 16;
+export const SPAN_MIN = 2;
+export const SPAN_MAX = 6;
 
-/** Pitch amounts offered in the editor, as entered text: 0, 1/32, 1/16, … 1 31/32, 2. */
-export const PITCH_AMOUNTS: string[] = Array.from({ length: PITCH_MAX * PITCH_STEP_DENOMINATOR + 1 }, (_, i) => {
-  const whole = Math.floor(i / PITCH_STEP_DENOMINATOR);
-  let n = i % PITCH_STEP_DENOMINATOR;
-  let d = PITCH_STEP_DENOMINATOR;
+/** Text for i sixteenths of an inch, reduced: 0, 1/16, 1/8, … 1 15/16, 2. */
+function sixteenths(i: number): string {
+  const whole = Math.floor(i / 16);
+  let n = i % 16;
+  let d = 16;
   while (n > 0 && n % 2 === 0) {
     n /= 2;
     d /= 2;
   }
   if (n === 0) return String(whole);
   return whole ? `${whole} ${n}/${d}` : `${n}/${d}`;
-});
+}
+
+/** Pitch amounts offered in the editor, as entered text: 0, 1/16, 1/8, … 1 15/16, 2. */
+export const PITCH_AMOUNTS: string[] = Array.from({ length: PITCH_MAX * PITCH_STEP_DENOMINATOR + 1 }, (_, i) => sixteenths(i));
+
+/** Decimal shown beside a fraction in the pickers, to three places with halves rounded to even (1/16 is 0.062). */
+export function decimalHint(text: string): string {
+  const parsed = parseMeasurement(text);
+  if (!parsed.ok) return '';
+  const thousandths = (parsed.value.n * 1000) / parsed.value.d;
+  const floor = Math.floor(thousandths);
+  const diff = thousandths - floor;
+  const rounded = diff > 0.5 || (diff === 0.5 && floor % 2 === 1) ? floor + 1 : floor;
+  return (rounded / 1000).toFixed(3);
+}
+
+/** The two span wheels: whole inches, and the sixteenths on top of them. */
+export const SPAN_WHOLES: string[] = Array.from({ length: SPAN_MAX - SPAN_MIN + 1 }, (_, i) => String(SPAN_MIN + i));
+export const SPAN_FRACTIONS: string[] = Array.from({ length: 16 }, (_, i) => (i === 0 ? '0' : sixteenths(i)));
+
+/** Splits a span such as "4 3/8" into its wheels; null when it isn't on them. */
+export function splitSpan(text: string): { whole: string; fraction: string } | null {
+  const parsed = parseMeasurement(text);
+  if (!parsed.ok || spanRangeError(parsed.value)) return null;
+  const { n, d } = parsed.value;
+  const whole = Math.floor(n / d);
+  return { whole: String(whole), fraction: sixteenths(((n - whole * d) * 16) / d) };
+}
+
+export function joinSpan(whole: string, fraction: string): string {
+  if (!whole) return '';
+  if (whole === String(SPAN_MAX) || !fraction || fraction === '0') return whole;
+  return `${whole} ${fraction}`;
+}
 
 function pitchRangeError(value: Rational): string | null {
   if (value.n > PITCH_MAX * value.d) return `Pitch must be between 0 and ${PITCH_MAX} inches`;
   if (PITCH_STEP_DENOMINATOR % value.d !== 0) return `Use steps of 1/${PITCH_STEP_DENOMINATOR} inch`;
+  return null;
+}
+
+function spanRangeError(value: Rational): string | null {
+  if (value.n < SPAN_MIN * value.d || value.n > SPAN_MAX * value.d) return `Span must be between ${SPAN_MIN} and ${SPAN_MAX} inches`;
+  if (16 % value.d !== 0) return 'Use steps of 1/16 inch';
   return null;
 }
 
@@ -216,7 +257,11 @@ export function validateDraft(draft: Draft): DraftErrors {
       errors[f.key] = parsed.error;
       continue;
     }
-    const rangeError = isPitchKind(f.kind) ? pitchRangeError(parsed.value) : null;
+    const rangeError = isPitchKind(f.kind)
+      ? pitchRangeError(parsed.value)
+      : (SPAN_FIELDS as readonly FieldKey[]).includes(f.key)
+        ? spanRangeError(parsed.value)
+        : null;
     if (rangeError) {
       errors[f.key] = rangeError;
       continue;
