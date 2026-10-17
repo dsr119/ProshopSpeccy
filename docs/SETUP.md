@@ -8,7 +8,7 @@ permission is enforced in the database. **Never put the service-role / secret ke
 
 ## 1. Database migrations
 
-**Already applied** to the hosted project on 2026-10-17 (all four files in `supabase/migrations/`, verified against
+**Already applied** to the hosted project on 2026-10-17 (all files in `supabase/migrations/`, verified against
 the local test stack). The migration filenames match the versions recorded in the hosted project, so nothing needs
 re-running. Future schema changes go in new migration files and are applied with:
 
@@ -23,6 +23,18 @@ npx supabase db push                     # applies only migrations the project h
 
 The migrations create the tables, row-level security policies, the save/restore functions and a private Storage
 bucket `spec-photos` (JPEG/PNG/WebP, 15 MB limit).
+
+## Open-link mode (currently ON)
+
+The hosted shop "Pro Shop" has `open_access = true`: anyone with the app link can use it without signing in, and
+saves are labelled "Shared link". Because the project URL and public key ship inside the app, anyone who has the
+link can read and change customer data. History stays immutable and customers can't be deleted.
+
+To require sign-in again, run in the SQL editor, then follow steps 2–4 below:
+
+```sql
+update public.shops set open_access = false;   -- rename with: update public.shops set name = '...';
+```
 
 ## 2. Lock down sign-up (dashboard › Authentication)
 
