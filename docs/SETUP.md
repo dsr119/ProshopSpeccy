@@ -74,6 +74,11 @@ npm run build      # static files in dist/, deployable to any static host (Netli
 
 On the static host, set the same two `VITE_…` variables and route all paths to `index.html` (single-page app).
 
+**GitHub Pages:** `.github/workflows/pages.yml` builds and deploys the app on every push to `main`, to
+`https://<owner>.github.io/<repo>/`. One-time setting: repository **Settings › Pages › Build and deployment ›
+Source: GitHub Actions** (not "Deploy from a branch", which serves the unbuilt source and shows a blank page).
+For any other subfolder host, build with `VITE_BASE=/subfolder/ npm run build`.
+
 ## 6. Backups (before relying on this as the only record)
 
 - Database: Supabase Pro plans include daily backups (and optional point-in-time recovery). On the Free plan there

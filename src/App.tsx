@@ -93,33 +93,37 @@ function Layout() {
   );
 }
 
-const router = createBrowserRouter([
-  {
-    path: '/',
-    element: <Gate />,
-    children: [
-      { index: true, element: <DashboardPage /> },
-      { path: 'customers/new', element: <NewCustomerPage /> },
-      { path: 'customers/:customerId', element: <CustomerPage /> },
-      { path: 'customers/:customerId/edit', element: <EditFitPage /> },
-      { path: 'customers/:customerId/history', element: <HistoryPage /> },
-      { path: 'customers/:customerId/history/:revisionId', element: <RevisionPage /> },
-      { path: 'customers/:customerId/photos', element: <PhotosPage /> },
-      { path: 'customers/:customerId/print', element: <PrintPage /> },
-      { path: 'staff', element: <StaffPage /> },
-      { path: 'account', element: <AccountPage /> },
-      {
-        path: '*',
-        element: (
-          <main className="page">
-            <h1>Page not found</h1>
-            <Link to="/">Back to customers</Link>
-          </main>
-        ),
-      },
-    ],
-  },
-]);
+const router = createBrowserRouter(
+  [
+    {
+      path: '/',
+      element: <Gate />,
+      children: [
+        { index: true, element: <DashboardPage /> },
+        { path: 'customers/new', element: <NewCustomerPage /> },
+        { path: 'customers/:customerId', element: <CustomerPage /> },
+        { path: 'customers/:customerId/edit', element: <EditFitPage /> },
+        { path: 'customers/:customerId/history', element: <HistoryPage /> },
+        { path: 'customers/:customerId/history/:revisionId', element: <RevisionPage /> },
+        { path: 'customers/:customerId/photos', element: <PhotosPage /> },
+        { path: 'customers/:customerId/print', element: <PrintPage /> },
+        { path: 'staff', element: <StaffPage /> },
+        { path: 'account', element: <AccountPage /> },
+        {
+          path: '*',
+          element: (
+            <main className="page">
+              <h1>Page not found</h1>
+              <Link to="/">Back to customers</Link>
+            </main>
+          ),
+        },
+      ],
+    },
+  ],
+  // Matches Vite's base so the app also works from a subfolder (GitHub Pages).
+  { basename: import.meta.env.BASE_URL.replace(/\/$/, '') || '/' },
+);
 
 export function App() {
   return (
