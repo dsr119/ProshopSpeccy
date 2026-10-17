@@ -43,6 +43,15 @@ export interface OverlaySlot extends Rect {
   signed?: boolean;
   /** Draw a frame around the slot (boxes and pitch boxes). */
   framed?: boolean;
+  /** Only on the sheet with or without finger grips. */
+  when?: 'grips' | 'no_grips';
+}
+
+/** A row of labelled boxes on the sheet; the chosen one is filled in. */
+export interface ChoiceGroup {
+  field: FieldKey;
+  when?: 'grips';
+  options: Array<{ value: string; label: string } & Rect>;
 }
 
 export interface SheetLabel {
@@ -62,6 +71,8 @@ export interface Circle {
   top: string;
   bottom: string;
   name: string;
+  /** A finger hole: split into grip and hole only when the fingers have grips. */
+  finger?: boolean;
 }
 
 export interface Arrow {
@@ -95,11 +106,12 @@ function fingerSlots(side: 'left' | 'right'): OverlaySlot[] {
   const f = finger(side);
   const half = { x: g.cx - 40, w: 80, h: 26 };
   return [
+    { field: `${f}_grip_size`, style: 'half', when: 'grips', ...half, y: HOLE_Y - 32 },
+    { field: `${f}_hole`, style: 'half', when: 'grips', ...half, y: HOLE_Y + 6 },
+    { field: `${f}_hole`, style: 'half', when: 'no_grips', x: g.cx - 44, w: 88, h: 32, y: HOLE_Y - 16 },
     { field: `${f}_fr_pitch`, style: 'pitch', dir: 'reverse', framed: true, x: g.colX, y: 27, w: 78, h: 48 },
     { field: `${f}_lateral_pitch`, style: 'pitch', signed: true, framed: true, x: g.colX, y: 91, w: 78, h: 48 },
     { field: `${f}_fr_pitch`, style: 'pitch', dir: 'forward', framed: true, x: g.colX, y: 155, w: 78, h: 48 },
-    { field: `${f}_oval`, style: 'half', ...half, y: HOLE_Y - 32 },
-    { field: `${f}_hole`, style: 'half', ...half, y: HOLE_Y + 6 },
     { field: `${f}_inserts`, style: 'line', x: g.cx - 52, y: 28, w: 104, h: 18 },
     { field: `${f}_cut_to_cut`, style: 'box', framed: true, x: side === 'left' ? 119 : 289, y: 262, w: 132, h: 72 },
   ] as OverlaySlot[];
@@ -108,7 +120,7 @@ function fingerSlots(side: 'left' | 'right'): OverlaySlot[] {
 export const OVERLAY_SLOTS: OverlaySlot[] = [
   ...fingerSlots('left'),
   ...fingerSlots('right'),
-  { field: 'bridge', style: 'box', framed: true, x: 230, y: 93, w: 78, h: 44 },
+  { field: 'bridge', style: 'box', framed: true, x: 230, y: 70, w: 78, h: 40 },
   { field: 'thumb_od', style: 'half', x: THUMB.cx - 40, y: THUMB.cy - 32, w: 80, h: 26 },
   { field: 'thumb_hole', style: 'half', x: THUMB.cx - 40, y: THUMB.cy + 6, w: 80, h: 26 },
   { field: 'thumb_fr_pitch', style: 'pitch', dir: 'forward', framed: true, x: 230, y: 368, w: 78, h: 48 },
@@ -119,9 +131,9 @@ export const OVERLAY_SLOTS: OverlaySlot[] = [
 ];
 
 export const SHEET_CIRCLES: Circle[] = [
-  { cx: FINGERS.left.cx, cy: HOLE_Y, r: HOLE_R, top: 'Oval', bottom: 'Hole Size', name: cap(finger('left')) },
-  { cx: FINGERS.right.cx, cy: HOLE_Y, r: HOLE_R, top: 'Oval', bottom: 'Hole Size', name: cap(finger('right')) },
-  { ...THUMB, top: 'O.D.', bottom: 'Hole Size', name: 'Thumb' },
+  { cx: FINGERS.left.cx, cy: HOLE_Y, r: HOLE_R, top: 'Grip', bottom: 'Hole Size', name: cap(finger('left')), finger: true },
+  { cx: FINGERS.right.cx, cy: HOLE_Y, r: HOLE_R, top: 'Grip', bottom: 'Hole Size', name: cap(finger('right')), finger: true },
+  { ...THUMB, top: 'Slug Size', bottom: 'Hole Size', name: 'Thumb' },
 ];
 
 export const SHEET_LABELS: SheetLabel[] = [
@@ -136,7 +148,7 @@ export const SHEET_LABELS: SheetLabel[] = [
       { text: 'Inserts', x: g.cx, y: 59 },
     ];
   }),
-  { text: 'Bridge', x: 269, y: 152 },
+  { text: 'Bridge', x: 269, y: 122 },
   { text: 'Forward', x: 269, y: 430 },
   { text: 'Reverse', x: 269, y: 545 },
   { text: 'Left', x: 163, y: 520 },
@@ -166,6 +178,25 @@ export const SHEET_DOTTED: DottedLine[] = [
   { x1: FINGERS.left.cx - 52, x2: FINGERS.left.cx + 52, y: 48 },
   { x1: FINGERS.right.cx - 52, x2: FINGERS.right.cx + 52, y: 48 },
   { x1: 352, x2: 482, y: 424 },
+];
+
+/** Grips or no grips above the bridge; with grips, STD or Vaccu under them. */
+export const CHOICE_GROUPS: ChoiceGroup[] = [
+  {
+    field: 'finger_grips',
+    options: [
+      { value: 'no_grips', label: 'No Grips', x: 226, y: 8, w: 42, h: 22 },
+      { value: 'grips', label: 'Grips', x: 271, y: 8, w: 42, h: 22 },
+    ],
+  },
+  {
+    field: 'grip_type',
+    when: 'grips',
+    options: [
+      { value: 'std', label: 'STD', x: 226, y: 36, w: 42, h: 22 },
+      { value: 'vaccu', label: 'Vaccu', x: 271, y: 36, w: 42, h: 22 },
+    ],
+  },
 ];
 
 /** The span type picker drawn between the spans: one lettered circle per type. */

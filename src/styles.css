@@ -1141,3 +1141,23 @@ a:focus-visible {
   color: #fff;
   font-size: 1.8rem;
 }
+
+/* Grips / No Grips and STD / Vaccu boxes on the sheet. */
+.sheet__captions .sheet__choice rect {
+  fill: #fff;
+  stroke: #1a1a1a;
+  stroke-width: 1.4;
+}
+.sheet__captions .sheet__choice text {
+  font-size: 9.5px;
+  font-weight: 700;
+}
+.sheet__captions .sheet__choice.is-on rect {
+  fill: #1a1a1a;
+}
+.sheet__captions .sheet__choice.is-on text {
+  fill: #fff;
+}
+.sheet__pick--box {
+  border-radius: 3px;
+}

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { USERS, chooseSpanType, createCustomer, dirSlot, expectSpan, fillField, loginAsStaff, pickSpan, slot, unique } from './helpers';
+import { USERS, chooseGrips, chooseSpanType, createCustomer, dirSlot, expectSpan, fillField, loginAsStaff, pickSpan, slot, unique } from './helpers';
 
 const fill = fillField;
 
@@ -12,7 +12,7 @@ test('mixed fractions, pitch directions, blank and zero save and reload in the r
   await page.getByLabel('Right-handed').check();
   await page.getByLabel('Thumb-in').check();
   await fill(page, 'middle_hole', '55/64');
-  await fill(page, 'ring_hole', '0');
+  await fill(page, 'ring_actual_cut', '0');
   await fill(page, 'thumb_hole', '1 1/16');
   await fill(page, 'middle_cut_to_cut', '4 3/8');
   await fill(page, 'ring_cut_to_cut', '4 5/16');
@@ -33,7 +33,6 @@ test('mixed fractions, pitch directions, blank and zero save and reload in the r
 
   await page.reload();
   await expect(slot(page, 'middle_hole')).toHaveText('55/64');
-  await expect(slot(page, 'ring_hole')).toHaveText('0');
   await expect(slot(page, 'thumb_hole')).toHaveText('1 1/16');
   await expect(slot(page, 'middle_cut_to_cut')).toHaveText('4 3/8');
   await expect(slot(page, 'ring_cut_to_cut')).toHaveText('4 5/16');
@@ -50,15 +49,15 @@ test('mixed fractions, pitch directions, blank and zero save and reload in the r
   // Blank stays blank (not zero).
   await expect(slot(page, 'bridge')).toHaveText('–');
   await expect(slot(page, 'bridge')).toHaveClass(/slot--empty/);
-  await expect(slot(page, 'ring_hole')).toHaveClass(/slot--value/);
+  await expect(slot(page, 'ring_hole')).toHaveClass(/slot--empty/);
   await expect(page.locator('.fit-identity')).toContainText('Right-handed');
   await expect(page.locator('.fit-identity')).toContainText('Thumb-in');
   await expect(page.getByText(/Last saved .* by Sam Staff/)).toBeVisible();
 
   await page.getByText('All measurements as text').click();
   const table = page.locator('.sheet-table');
-  await expect(table.locator('tr', { hasText: 'Ring finger hole size' })).toContainText('0"');
-  await expect(table.locator('tr', { hasText: 'Ring span actual-cut' })).toContainText('Not recorded');
+  await expect(table.locator('tr', { hasText: 'Ring span actual-cut' })).toContainText('0"');
+  await expect(table.locator('tr', { hasText: 'Ring finger hole size' })).toContainText('Not recorded');
   await expect(table.locator('tr', { hasText: 'Middle finger lateral pitch' })).toContainText('1/8" Right');
 });
 
@@ -66,12 +65,12 @@ test('invalid entries are flagged without being discarded', async ({ page }) => 
   await loginAsStaff(page);
   const id = await createCustomer(page, unique('Fictional Validation'));
   await page.goto(`/customers/${id}/edit`);
-  await fill(page, 'middle_hole', '4 3/0');
-  await fill(page, 'thumb_hole', '-1');
+  await fill(page, 'middle_actual_cut', '4 3/0');
+  await fill(page, 'ring_actual_cut', '-1');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(page.getByText('The bottom of a fraction cannot be zero')).toBeVisible();
-  await expect(page.getByText('Cannot be negative')).toBeVisible();
-  await expect(page.locator('#field-middle_hole')).toHaveValue('4 3/0');
+  await expect(page.getByText('The bottom of a fraction cannot be zero').first()).toBeVisible();
+  await expect(page.getByText('Cannot be negative').first()).toBeVisible();
+  await expect(page.locator('#field-middle_actual_cut')).toHaveValue('4 3/0');
   await expect(page).toHaveURL(/\/edit$/);
 });
 
@@ -210,27 +209,52 @@ test('left-handed no-thumb fits are labelled and keep earlier thumb values', asy
   await expect(page.locator('.sheet-table tr', { hasText: 'Thumb hole size' })).toContainText('saved, not applicable');
 });
 
-test('the span boxes record the chosen span type and the sheet names it', async ({ page }) => {
+test('each span type keeps its own spans and the sheet shows the chosen one', async ({ page }) => {
   await loginAsStaff(page);
   const id = await createCustomer(page, unique('Fictional Full Span'));
   await page.goto(`/customers/${id}/edit`);
-  await expect(page.locator('[data-span-heading]')).toHaveText('Span');
+  await expect(page.locator('[data-span-heading]')).toHaveText('Cut to Cut');
 
-  // A span without a span type is flagged.
-  await pickSpan(page, 'middle_cut_to_cut', '4 3/4');
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(page.getByText(/Choose Full Span, Cut to Cut or Cut to Outer first/)).toBeVisible();
-
-  await chooseSpanType(page, 'Full Span');
-  await pickSpan(page, 'middle_cut_to_cut', '4 3/4');
-  await pickSpan(page, 'ring_cut_to_cut', '4 11/16');
+  await fill(page, 'middle_cut_to_cut', '4 3/8');
+  await fill(page, 'middle_full_span', '4 3/4');
+  await fill(page, 'ring_full_span', '4 11/16');
   await expect(page.locator('[data-span-heading]')).toHaveText('Full Span');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/customers/${id}$`));
 
   await expect(page.locator('[data-span-heading]')).toHaveText('Full Span');
-  await expect(slot(page, 'middle_cut_to_cut')).toHaveText('4 3/4');
+  await expect(slot(page, 'middle_full_span')).toHaveText('4 3/4');
   const table = page.locator('.sheet-table');
-  await expect(table.locator('tr', { hasText: 'Span measured' })).toContainText('Full Span');
-  await expect(table.locator('tr', { hasText: 'Ring finger span' })).toContainText('4 11/16"');
+  await page.getByText('All measurements as text').click();
+  await expect(table.locator('tr', { hasText: 'Span shown' })).toContainText('Full Span');
+  await expect(table.locator('tr', { hasText: 'Middle finger cut to cut' })).toContainText('4 3/8"');
+  await expect(table.locator('tr', { hasText: 'Ring finger full span' })).toContainText('4 11/16"');
+
+  // Switching back to Cut to Cut shows the cut-to-cut span that was saved alongside.
+  await page.getByRole('link', { name: 'Edit measurements' }).click();
+  await chooseSpanType(page, 'Cut to Cut');
+  await expectSpan(page, 'middle_cut_to_cut', '4 3/8');
+});
+
+test('grips add a grip type and grip sizes, and limit the finger holes', async ({ page }) => {
+  await loginAsStaff(page);
+  const id = await createCustomer(page, unique('Fictional Grips'));
+  await page.goto(`/customers/${id}/edit`);
+  // Without grips each finger has one drilled hole size.
+  await expect(page.locator('#field-middle_grip_size')).toHaveCount(0);
+  await chooseGrips(page, 'Grips', 'Vaccu');
+  await fill(page, 'middle_grip_size', '37/64');
+  await fill(page, 'middle_hole', '31/32');
+  await expect(page.locator('#field-ring_hole option')).toHaveText(['–', '7/8"', '31/32"', '1 1/32"']);
+  await fill(page, 'bridge', '1/4');
+  await page.locator('#field-thumb_insert_type').selectOption('Turbo');
+  await expect(page.locator('#field-thumb_hole')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/customers/${id}$`));
+
+  await expect(slot(page, 'middle_grip_size')).toHaveText('37/64 (0.5)');
+  await expect(slot(page, 'middle_hole')).toHaveText('31/32');
+  await expect(slot(page, 'bridge')).toHaveText('1/4');
+  await expect(slot(page, 'thumb_hole')).toHaveText('N/A');
+  await expect(page.locator('.sheet [data-choice="vaccu"]')).toHaveClass(/is-on/);
 });

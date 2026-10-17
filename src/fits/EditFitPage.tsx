@@ -44,7 +44,7 @@ export function readStoredDraft(userId: string, customerId: string): StoredDraft
 }
 
 /** Measurements kept in the record but not drawn on the sheet; they're edited under "More measurements". */
-const OFF_SHEET: FieldKey[] = ['middle_actual_cut', 'ring_actual_cut', 'thumb_oval', 'thumb_oval_angle'];
+const OFF_SHEET: FieldKey[] = ['middle_oval', 'ring_oval', 'middle_actual_cut', 'ring_actual_cut', 'thumb_oval', 'thumb_oval_angle'];
 
 export function EditFitPage() {
   const { customerId = '' } = useParams();
@@ -243,7 +243,7 @@ export function EditFitPage() {
             caption="Spec sheet. Tap a box to type or scroll its value."
           />
           <p className="muted small">
-            Tap a box to type or scroll its value. Tap F, C or CTO to choose the span measured.
+            Tap a box to scroll or type its value. Tap Grips or No Grips above the bridge, and F, C or CTO to switch which span you're entering; each span type is saved.
             {noThumb && ' Thumb and span boxes show N/A in no-thumb mode; their saved values are kept.'}
           </p>
           {Object.keys(visibleErrors).length > 0 && (

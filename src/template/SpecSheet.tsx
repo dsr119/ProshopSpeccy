@@ -2,14 +2,18 @@ import { parseMeasurement } from '../measurements/fraction';
 import {
   FIELD_BY_KEY,
   FIELDS,
+  GRIPS_LABELS,
   GROUP_LABELS,
+  SPAN_FIELDS,
   SPAN_TYPE_LABELS,
   SPAN_TYPE_LETTERS,
   SPAN_TYPE_ORDER,
   directionLabel,
   formatValue,
+  isInterchangeable,
   isNotApplicable,
   parseDisplayDraft,
+  spanField,
   type Draft,
   type DraftErrors,
   type FieldGroup,
@@ -18,6 +22,7 @@ import {
   type SpanType,
 } from '../measurements/schema';
 import {
+  CHOICE_GROUPS,
   FINGER_MAPPING,
   OVERLAY_SLOTS,
   SHEET_ARROWS,
@@ -29,13 +34,40 @@ import {
   TEMPLATE_W,
   pctX,
   pctY,
+  type ChoiceGroup,
   type OverlaySlot,
 } from './overlayConfig';
-import { SlotControl, SpanTypeButtons, type SheetEditor } from './SheetControls';
+import { ChoiceButtons, SlotControl, SpanTypeButtons, type SheetEditor } from './SheetControls';
 
-/** Boxes typed into directly in edit mode (the rest are scroll pickers). */
+/** Boxes typed into directly in edit mode (the inserts); everything else is a scroll picker. */
 function isTyped(slot: OverlaySlot) {
-  return slot.style !== 'pitch' && !slot.field.endsWith('_cut_to_cut') && FIELD_BY_KEY[slot.field].kind !== 'enum_thumb_insert';
+  return FIELD_BY_KEY[slot.field].kind === 'text_short';
+}
+
+/** The span type the sheet shows; cut to cut until another is chosen. */
+function shownSpanType(display: DisplayFn): SpanType {
+  const d = display('span_type');
+  const t =
+    d.state === 'value' ? (Object.entries(SPAN_TYPE_LABELS).find(([, label]) => label === d.text)?.[0] as SpanType | undefined) : undefined;
+  return t ?? 'cut_to_cut';
+}
+
+/** Which choice is shown as picked in a row of boxes, from its display text. */
+function chosenValue(group: ChoiceGroup, display: DisplayFn): string | undefined {
+  const d = display(group.field);
+  return d.state === 'value' || d.state === 'invalid' ? group.options.find((o) => o.label === d.text)?.value : undefined;
+}
+
+/** The slots drawn for the current fit: grip boxes only with grips, and the span boxes for the span type shown. */
+function sheetSlots(display: DisplayFn): OverlaySlot[] {
+  const grips = display('finger_grips');
+  const hasGrips = grips.state === 'value' && grips.text === GRIPS_LABELS.grips;
+  const spanType = shownSpanType(display);
+  return OVERLAY_SLOTS.filter((s) => !s.when || (s.when === 'grips') === hasGrips).map((s) =>
+    (SPAN_FIELDS as readonly FieldKey[]).includes(s.field)
+      ? { ...s, field: spanField(s.field.startsWith('middle') ? 'middle' : 'ring', spanType) }
+      : s,
+  );
 }
 
 export type SlotDisplay =
@@ -54,7 +86,8 @@ export function displayFromSnapshot(snapshot: Snapshot | null): DisplayFn {
     const v = snapshot?.[key] ?? null;
     if (v == null) return { state: 'empty' };
     if (typeof v === 'string') return { state: 'value', text: formatValue(key, v) ?? v };
-    return { state: 'value', text: v.entered, dir: 'dir' in v ? String(v.dir) : undefined };
+    const text = key.endsWith('_grip_size') ? (formatValue(key, v) ?? v.entered) : v.entered;
+    return { state: 'value', text, dir: 'dir' in v ? String(v.dir) : undefined };
   };
 }
 
@@ -62,6 +95,7 @@ export function displayFromDraft(draft: Draft, errors: DraftErrors): DisplayFn {
   const thumbMode = draft.thumb_mode.text;
   return (key) => {
     if (FIELD_BY_KEY[key].thumbDependent && thumbMode === 'no_thumb') return { state: 'na' };
+    if ((key === 'thumb_hole' || key === 'thumb_od') && isInterchangeable(draft.thumb_insert_type.text.trim())) return { state: 'na' };
     const parsed = parseDisplayDraft(draft, key);
     if (parsed == null) return { state: 'empty' };
     if (errors[key]) return { state: 'invalid', text: parsed.text || '?', dir: parsed.dir };
@@ -112,11 +146,10 @@ interface SpecSheetProps {
 }
 
 export function SpecSheet({ display, editor, activeField, caption }: SpecSheetProps) {
-  const spanDisplay = display('span_type');
-  const spanType =
-    spanDisplay.state === 'value'
-      ? (Object.entries(SPAN_TYPE_LABELS).find(([, label]) => label === spanDisplay.text)?.[0] as SpanType | undefined)
-      : undefined;
+  const spanType = shownSpanType(display);
+  const slots = sheetSlots(display);
+  const hasGrips = slots.some((s) => s.when === 'grips');
+  const choices = CHOICE_GROUPS.filter((g) => !g.when || hasGrips).map((g) => ({ group: g, value: chosenValue(g, display) }));
   return (
     <figure className="sheet-figure">
       <div
@@ -124,8 +157,8 @@ export function SpecSheet({ display, editor, activeField, caption }: SpecSheetPr
         role={editor ? 'group' : 'img'}
         aria-label={caption ?? 'Fitting spec sheet. The full list of values is available as text below.'}
       >
-        <SheetArtwork spanType={spanType} />
-        {OVERLAY_SLOTS.map((slot) => {
+        <SheetArtwork spanType={spanType} grips={hasGrips} choices={choices} />
+        {slots.map((slot) => {
           const d = forSlot(slot, display(slot.field));
           const text = slotText(slot, d);
           const { size, lines } = fitFont(text, slot.w, slot.h, slot.style === 'pitch' || slot.style === 'box' ? 20 : 14);
@@ -146,7 +179,7 @@ export function SpecSheet({ display, editor, activeField, caption }: SpecSheetPr
           };
           const where = slot.dir ? ` (${directionLabel(slot.dir).toLowerCase()})` : '';
           const label = FIELD_BY_KEY[slot.field].label + where;
-          const key = slot.dir ? `${slot.field}:${slot.dir}` : slot.field;
+          const key = `${slot.field}:${slot.dir ?? ''}:${slot.when ?? ''}`;
           const content = d.state === 'empty' && slot.style !== 'line' ? <span className="slot__empty">–</span> : text;
           if (editor && d.state !== 'na') {
             return (
@@ -162,13 +195,15 @@ export function SpecSheet({ display, editor, activeField, caption }: SpecSheetPr
             </span>
           );
         })}
-        {editor && display('span_type').state !== 'na' && <SpanTypeButtons editor={editor} />}
+        {editor && display('span_type').state !== 'na' && <SpanTypeButtons editor={editor} current={spanType} />}
+        {editor && choices.map(({ group, value }) => <ChoiceButtons key={group.field} group={group} value={value} editor={editor} />)}
       </div>
       <figcaption className="sheet-legend">
         <strong>Orientation{FINGER_MAPPING.provisional ? ' (provisional)' : ''}:</strong> {FINGER_MAPPING.viewDescription}. Left
         upper hole = {FINGER_MAPPING.leftUpperHole}, right upper hole = {FINGER_MAPPING.rightUpperHole}. The layout is the same for
         left- and right-handed bowlers. Units: inches. Pitches show in the box on their arrow; finger lateral pitch
-        is minus for left and plus for right. “–” means not recorded; N/A means not applicable in no-thumb mode.
+        is minus for left and plus for right. Spans show the type picked with F, C or CTO; every type is saved. “–” means
+        not recorded; N/A means not applicable (no-thumb mode, or no hole or slug size with an interchangeable thumb insert).
       </figcaption>
     </figure>
   );
@@ -183,7 +218,15 @@ function head(x1: number, y1: number, x2: number, y2: number) {
 }
 
 /** The drawn sheet: hole circles, pitch arrows, span arrows, dotted lines, captions and the span type picker. */
-function SheetArtwork({ spanType }: { spanType?: SpanType }) {
+function SheetArtwork({
+  spanType,
+  grips,
+  choices,
+}: {
+  spanType: SpanType;
+  grips: boolean;
+  choices: Array<{ group: ChoiceGroup; value?: string }>;
+}) {
   const types = SPAN_TYPE_ORDER;
   const first = SPAN_PICKER.cx - ((types.length - 1) * SPAN_PICKER.gap) / 2;
   return (
@@ -192,7 +235,7 @@ function SheetArtwork({ spanType }: { spanType?: SpanType }) {
         {SHEET_CIRCLES.map((c) => (
           <g key={c.name}>
             <circle cx={c.cx} cy={c.cy} r={c.r} fill="none" />
-            <line x1={c.cx - c.r} x2={c.cx + c.r} y1={c.cy} y2={c.cy} />
+            {(!c.finger || grips) && <line x1={c.cx - c.r} x2={c.cx + c.r} y1={c.cy} y2={c.cy} />}
           </g>
         ))}
         {SHEET_ARROWS.map((a, i) => (
@@ -217,14 +260,26 @@ function SheetArtwork({ spanType }: { spanType?: SpanType }) {
             <text x={c.cx} y={c.cy - c.r + 13} className="sheet__name">
               {c.name.toUpperCase()}
             </text>
-            <text x={c.cx} y={c.cy - 4} className="sheet__small">
-              {c.top}
-            </text>
+            {(!c.finger || grips) && (
+              <text x={c.cx} y={c.cy - 4} className="sheet__small">
+                {c.top}
+              </text>
+            )}
             <text x={c.cx} y={c.cy + c.r - 6} className="sheet__small">
               {c.bottom}
             </text>
           </g>
         ))}
+        {choices.flatMap(({ group, value }) =>
+          group.options.map((o) => (
+            <g key={`${group.field}:${o.value}`} className={`sheet__choice${o.value === value ? ' is-on' : ''}`} data-choice={o.value}>
+              <rect x={o.x} y={o.y} width={o.w} height={o.h} rx={3} />
+              <text x={o.x + o.w / 2} y={o.y + o.h / 2 + 3.5}>
+                {o.label}
+              </text>
+            </g>
+          )),
+        )}
         {SHEET_LABELS.map((l, i) => (
           <text key={i} x={l.x} y={l.y} textAnchor={l.anchor ?? 'middle'}>
             {l.text}
@@ -245,14 +300,14 @@ function SheetArtwork({ spanType }: { spanType?: SpanType }) {
           );
         })}
         <text x={SPAN_PICKER.cx} y={SPAN_PICKER.labelY} className="sheet__picked" data-span-heading>
-          {spanType ? SPAN_TYPE_LABELS[spanType] : 'Span'}
+          {SPAN_TYPE_LABELS[spanType]}
         </text>
       </g>
     </svg>
   );
 }
 
-const GROUP_ORDER: FieldGroup[] = ['identity', 'middle', 'ring', 'spans', 'thumb', 'details'];
+const GROUP_ORDER: FieldGroup[] = ['identity', 'fingers', 'middle', 'ring', 'spans', 'thumb', 'details'];
 
 /** Accessible, printable text version of the complete sheet. */
 export function SheetTable({ snapshot }: { snapshot: Snapshot | null }) {

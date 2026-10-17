@@ -11,6 +11,8 @@ export type FieldKind =
   | 'enum_thumb_mode'
   | 'enum_span_type'
   | 'enum_thumb_insert'
+  | 'enum_grips'
+  | 'enum_grip_type'
   | 'text_short'
   | 'text_long'
   | 'length'
@@ -18,7 +20,7 @@ export type FieldKind =
   | 'pitch_lateral'
   | 'pitch_fr';
 
-export type FieldGroup = 'identity' | 'middle' | 'ring' | 'spans' | 'thumb' | 'details';
+export type FieldGroup = 'identity' | 'fingers' | 'middle' | 'ring' | 'spans' | 'thumb' | 'details';
 
 export interface FieldDef {
   key: FieldKey;
@@ -35,11 +37,15 @@ export const FIELD_KEYS = [
   'hand',
   'thumb_mode',
   'fit_label',
+  'finger_grips',
+  'grip_type',
+  'middle_grip_size',
   'middle_hole',
   'middle_oval',
   'middle_lateral_pitch',
   'middle_fr_pitch',
   'middle_inserts',
+  'ring_grip_size',
   'ring_hole',
   'ring_oval',
   'ring_lateral_pitch',
@@ -49,6 +55,10 @@ export const FIELD_KEYS = [
   'span_type',
   'middle_cut_to_cut',
   'ring_cut_to_cut',
+  'middle_full_span',
+  'ring_full_span',
+  'middle_cut_to_outer',
+  'ring_cut_to_outer',
   'middle_actual_cut',
   'ring_actual_cut',
   'thumb_hole',
@@ -70,12 +80,17 @@ export const FIELDS: FieldDef[] = [
   { key: 'thumb_mode', kind: 'enum_thumb_mode', label: 'Thumb mode', shortLabel: 'Thumb mode', group: 'identity' },
   { key: 'fit_label', kind: 'text_short', label: 'Fit label (optional)', shortLabel: 'Label', group: 'identity' },
 
+  { key: 'finger_grips', kind: 'enum_grips', label: 'Finger grips', shortLabel: 'Grips', group: 'fingers' },
+  { key: 'grip_type', kind: 'enum_grip_type', label: 'Grip type', shortLabel: 'Grip type', group: 'fingers' },
+
+  { key: 'middle_grip_size', kind: 'length', label: 'Middle finger grip size', shortLabel: 'Grip size', group: 'middle', unit: 'in' },
   { key: 'middle_hole', kind: 'length', label: 'Middle finger hole size', shortLabel: 'Hole', group: 'middle', unit: 'in' },
   { key: 'middle_oval', kind: 'text_short', label: 'Middle finger oval', shortLabel: 'Oval', group: 'middle' },
   { key: 'middle_lateral_pitch', kind: 'pitch_lateral', label: 'Middle finger lateral pitch', shortLabel: 'Lateral pitch', group: 'middle', unit: 'in' },
   { key: 'middle_fr_pitch', kind: 'pitch_fr', label: 'Middle finger forward/reverse pitch', shortLabel: 'Fwd/Rev pitch', group: 'middle', unit: 'in' },
   { key: 'middle_inserts', kind: 'text_short', label: 'Middle finger inserts', shortLabel: 'Inserts', group: 'middle' },
 
+  { key: 'ring_grip_size', kind: 'length', label: 'Ring finger grip size', shortLabel: 'Grip size', group: 'ring', unit: 'in' },
   { key: 'ring_hole', kind: 'length', label: 'Ring finger hole size', shortLabel: 'Hole', group: 'ring', unit: 'in' },
   { key: 'ring_oval', kind: 'text_short', label: 'Ring finger oval', shortLabel: 'Oval', group: 'ring' },
   { key: 'ring_lateral_pitch', kind: 'pitch_lateral', label: 'Ring finger lateral pitch', shortLabel: 'Lateral pitch', group: 'ring', unit: 'in' },
@@ -83,11 +98,14 @@ export const FIELDS: FieldDef[] = [
   { key: 'ring_inserts', kind: 'text_short', label: 'Ring finger inserts', shortLabel: 'Inserts', group: 'ring' },
 
   { key: 'bridge', kind: 'length', label: 'Bridge', shortLabel: 'Bridge', group: 'spans', unit: 'in' },
-  // What the upper span boxes measure. The keys below keep their original names (stable
-  // database keys); older fits without a span type were cut-to-cut.
-  { key: 'span_type', kind: 'enum_span_type', label: 'Span measured', shortLabel: 'Span', group: 'spans', thumbDependent: true },
-  { key: 'middle_cut_to_cut', kind: 'length', label: 'Middle finger span', shortLabel: 'Middle span', group: 'spans', unit: 'in', thumbDependent: true },
-  { key: 'ring_cut_to_cut', kind: 'length', label: 'Ring finger span', shortLabel: 'Ring span', group: 'spans', unit: 'in', thumbDependent: true },
+  // Each span type is saved separately; span_type is the one the sheet shows.
+  { key: 'span_type', kind: 'enum_span_type', label: 'Span shown', shortLabel: 'Span', group: 'spans', thumbDependent: true },
+  { key: 'middle_cut_to_cut', kind: 'length', label: 'Middle finger cut to cut', shortLabel: 'Middle cut to cut', group: 'spans', unit: 'in', thumbDependent: true },
+  { key: 'ring_cut_to_cut', kind: 'length', label: 'Ring finger cut to cut', shortLabel: 'Ring cut to cut', group: 'spans', unit: 'in', thumbDependent: true },
+  { key: 'middle_full_span', kind: 'length', label: 'Middle finger full span', shortLabel: 'Middle full span', group: 'spans', unit: 'in', thumbDependent: true },
+  { key: 'ring_full_span', kind: 'length', label: 'Ring finger full span', shortLabel: 'Ring full span', group: 'spans', unit: 'in', thumbDependent: true },
+  { key: 'middle_cut_to_outer', kind: 'length', label: 'Middle finger cut to outer', shortLabel: 'Middle cut to outer', group: 'spans', unit: 'in', thumbDependent: true },
+  { key: 'ring_cut_to_outer', kind: 'length', label: 'Ring finger cut to outer', shortLabel: 'Ring cut to outer', group: 'spans', unit: 'in', thumbDependent: true },
   { key: 'middle_actual_cut', kind: 'length', label: 'Middle span actual-cut', shortLabel: 'Middle actual-cut', group: 'spans', unit: 'in', thumbDependent: true },
   { key: 'ring_actual_cut', kind: 'length', label: 'Ring span actual-cut', shortLabel: 'Ring actual-cut', group: 'spans', unit: 'in', thumbDependent: true },
 
@@ -96,7 +114,7 @@ export const FIELDS: FieldDef[] = [
   { key: 'thumb_lateral_pitch', kind: 'pitch_lateral', label: 'Thumb lateral pitch', shortLabel: 'Lateral pitch', group: 'thumb', unit: 'in', thumbDependent: true },
   { key: 'thumb_fr_pitch', kind: 'pitch_fr', label: 'Thumb forward/reverse pitch', shortLabel: 'Fwd/Rev pitch', group: 'thumb', unit: 'in', thumbDependent: true },
   { key: 'thumb_oval_angle', kind: 'angle', label: 'Thumb oval angle', shortLabel: 'Oval angle', group: 'thumb', unit: '°', thumbDependent: true },
-  { key: 'thumb_od', kind: 'length', label: 'Thumb O.D.', shortLabel: 'O.D.', group: 'thumb', unit: 'in', thumbDependent: true },
+  { key: 'thumb_od', kind: 'length', label: 'Thumb slug size', shortLabel: 'Slug size', group: 'thumb', unit: 'in', thumbDependent: true },
   { key: 'thumb_insert_type', kind: 'enum_thumb_insert', label: 'Thumb insert type', shortLabel: 'Insert type', group: 'thumb', thumbDependent: true },
 
   { key: 'finger_insert_details', kind: 'text_long', label: 'Finger insert details', shortLabel: 'Finger inserts', group: 'details' },
@@ -108,6 +126,7 @@ export const FIELD_BY_KEY = Object.fromEntries(FIELDS.map((f) => [f.key, f])) as
 
 export const GROUP_LABELS: Record<FieldGroup, string> = {
   identity: 'Fit',
+  fingers: 'Finger grips',
   middle: 'Middle finger',
   ring: 'Ring finger',
   spans: 'Spans',
@@ -121,7 +140,77 @@ export type Hand = 'right' | 'left';
 export type ThumbMode = 'thumb_in' | 'no_thumb';
 export type SpanType = 'cut_to_cut' | 'full_span' | 'cut_to_outer';
 
-export const SPAN_FIELDS = ['middle_cut_to_cut', 'ring_cut_to_cut'] as const;
+export const SPAN_FIELDS = [
+  'middle_cut_to_cut',
+  'ring_cut_to_cut',
+  'middle_full_span',
+  'ring_full_span',
+  'middle_cut_to_outer',
+  'ring_cut_to_outer',
+] as const;
+
+/** The saved field behind a finger's span box for a span type. */
+export function spanField(finger: 'middle' | 'ring', type: SpanType | '' | null | undefined): FieldKey {
+  return `${finger}_${type === 'full_span' || type === 'cut_to_outer' ? type : 'cut_to_cut'}` as FieldKey;
+}
+
+export type Grips = 'no_grips' | 'grips';
+export type GripType = 'std' | 'vaccu';
+export const GRIPS_LABELS: Record<Grips, string> = { no_grips: 'No Grips', grips: 'Grips' };
+export const GRIP_TYPE_LABELS: Record<GripType, string> = { std: 'STD', vaccu: 'Vaccu' };
+
+/** n/64 inch as reduced text, e.g. 72 → "1 1/8". */
+function sixtyFourths(i: number): string {
+  const whole = Math.floor(i / 64);
+  let n = i % 64;
+  let d = 64;
+  while (n > 0 && n % 2 === 0) {
+    n /= 2;
+    d /= 2;
+  }
+  if (n === 0) return String(whole);
+  return whole ? `${whole} ${n}/${d}` : `${n}/${d}`;
+}
+
+/** Drilled hole sizes, 1/4 to 1 1/4 in 1/64 steps (fingers without grips, and the thumb). */
+export const HOLE_SIZES: string[] = Array.from({ length: 65 }, (_, i) => sixtyFourths(16 + i));
+/** Holes drilled for finger grips. */
+export const GRIP_HOLE_SIZES = ['7/8', '31/32', '1 1/32'];
+/** Finger grip sizes with the grip number shown beside each. */
+export const GRIP_SIZES: Array<[string, string]> = [
+  ...Array.from({ length: 23 }, (_, i) => [sixtyFourths(34 + i), String((i - 2) / 2)] as [string, string]),
+  ['29/32', '11'],
+];
+/** Bridge, 1/8 to 1/2 in 1/16 steps. */
+export const BRIDGE_SIZES: string[] = Array.from({ length: 7 }, (_, i) => sixtyFourths(8 + i * 4));
+/** Thumb slug sizes. */
+export const SLUG_SIZES = ['7/8', '1 1/8', '1 1/4', '1 3/8'];
+
+/** The grip number for a grip size, e.g. "9/16" → "0". */
+export function gripNumber(size: string): string | null {
+  const p = parseMeasurement(size);
+  if (!p.ok) return null;
+  const hit = GRIP_SIZES.find(([s]) => {
+    const q = parseMeasurement(s);
+    return q.ok && q.value.n * p.value.d === p.value.n * q.value.d;
+  });
+  return hit ? hit[1] : null;
+}
+
+/** Values offered by a picker on the sheet, given the rest of the draft. */
+export function pickerOptions(key: FieldKey, draft: Pick<Draft, 'finger_grips'>): string[] | null {
+  if (key === 'middle_hole' || key === 'ring_hole') return draft.finger_grips.text === 'grips' ? GRIP_HOLE_SIZES : HOLE_SIZES;
+  if (key === 'thumb_hole') return HOLE_SIZES;
+  if (key === 'middle_grip_size' || key === 'ring_grip_size') return GRIP_SIZES.map(([s]) => s);
+  if (key === 'bridge') return BRIDGE_SIZES;
+  if (key === 'thumb_od') return SLUG_SIZES;
+  return null;
+}
+
+/** True for the interchangeable thumb inserts, which have no hole size or slug size of their own. */
+export function isInterchangeable(insertType: string | null | undefined): boolean {
+  return !!insertType && insertType !== 'Thumb Slug' && (THUMB_INSERT_TYPES as readonly string[]).includes(insertType);
+}
 
 /** A saved numeric value: the notation as entered plus its exact fraction. */
 export interface StoredNumber extends Rational {
@@ -241,6 +330,8 @@ export function validateDraft(draft: Draft): DraftErrors {
     const trimmed = text.trim();
     if (f.kind === 'enum_thumb_insert' && trimmed && !(THUMB_INSERT_TYPES as readonly string[]).includes(trimmed))
       errors[f.key] = `Choose ${THUMB_INSERT_TYPES.join(', ')}`;
+    if (f.kind === 'enum_grips' && trimmed && !(trimmed in GRIPS_LABELS)) errors[f.key] = 'Choose grips or no grips';
+    if (f.kind === 'enum_grip_type' && trimmed && !(trimmed in GRIP_TYPE_LABELS)) errors[f.key] = 'Choose STD or Vaccu';
     if (f.kind === 'text_short' && trimmed.length > 120) errors[f.key] = 'Keep this under 120 characters';
     if (f.kind === 'text_long' && trimmed.length > 4000) errors[f.key] = 'Keep this under 4000 characters';
     if (!isNumericKind(f.kind)) continue;
@@ -257,11 +348,14 @@ export function validateDraft(draft: Draft): DraftErrors {
       errors[f.key] = parsed.error;
       continue;
     }
+    const options = pickerOptions(f.key, draft);
     const rangeError = isPitchKind(f.kind)
       ? pitchRangeError(parsed.value)
       : (SPAN_FIELDS as readonly FieldKey[]).includes(f.key)
         ? spanRangeError(parsed.value)
-        : null;
+        : options && !options.some((o) => sameAmount(o, parsed.value))
+          ? `Choose ${options.length > 8 ? `from ${options[0]} to ${options[options.length - 1]}` : options.join(', ')}`
+          : null;
     if (rangeError) {
       errors[f.key] = rangeError;
       continue;
@@ -270,12 +364,22 @@ export function validateDraft(draft: Draft): DraftErrors {
       errors[f.key] = f.kind === 'pitch_lateral' ? 'Choose left or right' : 'Choose forward or reverse';
     }
   }
-  if (!draft.span_type.text) {
-    for (const key of SPAN_FIELDS) {
-      if (draft[key].text.trim() !== '' && !errors[key]) errors[key] = 'Choose Full Span, Cut to Cut or Cut to Outer first';
+  if (draft.finger_grips.text !== 'grips') {
+    for (const key of ['grip_type', 'middle_grip_size', 'ring_grip_size'] as const) {
+      if (draft[key].text.trim() !== '' && !errors[key]) errors[key] = 'Only used with grips';
+    }
+  }
+  if (isInterchangeable(draft.thumb_insert_type.text.trim())) {
+    for (const key of ['thumb_hole', 'thumb_od'] as const) {
+      if (draft[key].text.trim() !== '' && !errors[key]) errors[key] = 'Not used with an interchangeable thumb insert';
     }
   }
   return errors;
+}
+
+function sameAmount(text: string, value: Rational): boolean {
+  const p = parseMeasurement(text);
+  return p.ok && p.value.n * value.d === value.n * p.value.d;
 }
 
 /** Converts a valid draft into a canonical snapshot (same shape the database stores). */
@@ -345,7 +449,7 @@ export const SPAN_TYPE_HINTS: Record<SpanType, string> = {
   cut_to_outer: 'cut of finger hole to outer edge of thumb hole',
 };
 /** Thumb insert types offered in the editor, saved as shown. */
-export const THUMB_INSERT_TYPES = ['IT', 'JOPO', 'Turbo', 'Turbo NX'] as const;
+export const THUMB_INSERT_TYPES = ['IT', 'JOPO', 'Turbo', 'Turbo NX', 'Thumb Slug'] as const;
 
 /** Plain-text value for display, history and print; null when not recorded. */
 export function formatValue(key: FieldKey, value: Snapshot[FieldKey], opts: { unit?: boolean } = {}): string | null {
@@ -355,7 +459,13 @@ export function formatValue(key: FieldKey, value: Snapshot[FieldKey], opts: { un
     if (f.kind === 'enum_hand') return HAND_LABELS[value as Hand] ?? value;
     if (f.kind === 'enum_thumb_mode') return THUMB_MODE_LABELS[value as ThumbMode] ?? value;
     if (f.kind === 'enum_span_type') return SPAN_TYPE_LABELS[value as SpanType] ?? value;
+    if (f.kind === 'enum_grips') return GRIPS_LABELS[value as Grips] ?? value;
+    if (f.kind === 'enum_grip_type') return GRIP_TYPE_LABELS[value as GripType] ?? value;
     return value;
+  }
+  if (key === 'middle_grip_size' || key === 'ring_grip_size') {
+    const num = gripNumber(value.entered);
+    if (num != null) return `${value.entered}${opts.unit ? '"' : ''} (${num})`;
   }
   const unit = opts.unit && f.unit ? (f.unit === '°' ? '°' : '"') : '';
   const base = `${value.entered}${unit}`;
@@ -382,7 +492,24 @@ export function diffSnapshots(before: Snapshot | null, after: Snapshot | null): 
 
 /** True when the value should be shown as "not applicable" on the sheet. */
 export function isNotApplicable(key: FieldKey, snapshot: Snapshot | null): boolean {
+  if ((key === 'thumb_hole' || key === 'thumb_od') && isInterchangeable(snapshot?.thumb_insert_type as string | null)) return true;
   return !!FIELD_BY_KEY[key].thumbDependent && snapshot?.thumb_mode === 'no_thumb';
+}
+
+/**
+ * Snapshots saved before each span type had its own fields kept every span in
+ * the cut-to-cut keys, labelled by span_type. Move those to the right keys.
+ */
+export function upgradeSnapshot(snapshot: Snapshot): Snapshot {
+  const s = snapshot as Record<string, Snapshot[FieldKey] | undefined>;
+  const type = s.span_type;
+  if (s.middle_full_span !== undefined || (type !== 'full_span' && type !== 'cut_to_outer')) return snapshot;
+  const out = { ...snapshot } as Record<FieldKey, Snapshot[FieldKey]>;
+  for (const finger of ['middle', 'ring'] as const) {
+    out[spanField(finger, type)] = out[`${finger}_cut_to_cut`] ?? null;
+    out[`${finger}_cut_to_cut`] = null;
+  }
+  return out as Snapshot;
 }
 
 /** What a draft field currently shows on the sheet; null when blank. */
@@ -393,6 +520,9 @@ export function parseDisplayDraft(draft: Draft, key: FieldKey): { text: string; 
   if (f.kind === 'enum_hand') return { text: HAND_LABELS[text as Hand] ?? text };
   if (f.kind === 'enum_thumb_mode') return { text: THUMB_MODE_LABELS[text as ThumbMode] ?? text };
   if (f.kind === 'enum_span_type') return { text: SPAN_TYPE_LABELS[text as SpanType] ?? text };
+  if (f.kind === 'enum_grips') return { text: GRIPS_LABELS[text as Grips] ?? text };
+  if (f.kind === 'enum_grip_type') return { text: GRIP_TYPE_LABELS[text as GripType] ?? text };
+  if ((key === 'middle_grip_size' || key === 'ring_grip_size') && gripNumber(text) != null) return { text: `${text} (${gripNumber(text)})` };
   if (isPitchKind(f.kind)) return { text, dir: draft[key].dir || undefined };
   return { text };
 }

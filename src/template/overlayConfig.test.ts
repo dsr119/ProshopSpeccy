@@ -1,10 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { FIELDS } from '../measurements/schema';
-import { OVERLAY_SLOTS, SHEET_LABELS, TEMPLATE_H, TEMPLATE_W } from './overlayConfig';
+import { CHOICE_GROUPS, OVERLAY_SLOTS, SHEET_LABELS, TEMPLATE_H, TEMPLATE_W } from './overlayConfig';
 import { fitFont, pitchText } from './SpecSheet';
 
-// The span type is the lettered picker; these are kept in the record and the table but not drawn on the sheet.
-const OFF_SHEET = new Set(['span_type', 'middle_actual_cut', 'ring_actual_cut', 'thumb_oval', 'thumb_oval_angle']);
+// The span type is the lettered picker and grips are choice boxes; the full span and cut to outer values share
+// the span boxes with cut to cut; the rest are kept in the record and the table but not drawn on the sheet.
+const OFF_SHEET = new Set([
+  'span_type',
+  'finger_grips',
+  'grip_type',
+  'middle_full_span',
+  'ring_full_span',
+  'middle_cut_to_outer',
+  'ring_cut_to_outer',
+  'middle_oval',
+  'ring_oval',
+  'middle_actual_cut',
+  'ring_actual_cut',
+  'thumb_oval',
+  'thumb_oval_angle',
+]);
 const sheetFields = FIELDS.filter((f) => !['identity', 'details'].includes(f.group) && !OFF_SHEET.has(f.key)).map((f) => f.key);
 
 function overlaps(a: { x: number; y: number; w: number; h: number }, b: typeof a) {
@@ -15,7 +30,8 @@ describe('overlay configuration', () => {
   it('places every sheet measurement, with one box per pitch direction', () => {
     const keys = [...new Set(OVERLAY_SLOTS.map((s) => s.field))].sort();
     expect(keys).toEqual([...sheetFields].sort());
-    const ids = OVERLAY_SLOTS.map((s) => `${s.field}:${s.dir ?? ''}`);
+    const ids = OVERLAY_SLOTS.map((s) => `${s.field}:${s.dir ?? ''}:${s.when ?? ''}`);
+    expect(CHOICE_GROUPS.map((g) => g.field)).toEqual(['finger_grips', 'grip_type']);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
@@ -33,11 +49,16 @@ describe('overlay configuration', () => {
     }
   });
 
-  it('never overlaps two slots', () => {
-    for (let i = 0; i < OVERLAY_SLOTS.length; i++) {
-      for (let j = i + 1; j < OVERLAY_SLOTS.length; j++) {
-        const a = OVERLAY_SLOTS[i];
-        const b = OVERLAY_SLOTS[j];
+  it('never overlaps two slots or choice boxes shown together', () => {
+    const boxes = [
+      ...OVERLAY_SLOTS,
+      ...CHOICE_GROUPS.flatMap((g) => g.options.map((o) => ({ ...o, field: `${g.field}:${o.value}`, when: undefined }))),
+    ];
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i];
+        const b = boxes[j];
+        if (a.when && b.when && a.when !== b.when) continue;
         expect(overlaps(a, b), `${a.field} overlaps ${b.field}`).toBe(false);
       }
     }

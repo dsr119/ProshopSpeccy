@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { AppError, toAppError, unwrap } from '../lib/errors';
-import { snapshotToPayload, type Snapshot } from '../measurements/schema';
+import { snapshotToPayload, upgradeSnapshot, type Snapshot } from '../measurements/schema';
 
 export interface Fit {
   id: string;
@@ -54,17 +54,24 @@ export async function getCurrentFit(customerId: string): Promise<CurrentFit> {
   const revision = unwrap(
     await supabase.from('fit_revisions').select('*').eq('id', fit.current_revision_id).single(),
   ) as FitRevision;
-  return { fit, revision };
+  return { fit, revision: upgrade(revision) };
 }
 
 export async function listRevisions(fitId: string): Promise<FitRevision[]> {
-  return unwrap(
-    await supabase.from('fit_revisions').select('*').eq('fit_id', fitId).order('revision_number', { ascending: false }),
-  ) as FitRevision[];
+  return (
+    unwrap(
+      await supabase.from('fit_revisions').select('*').eq('fit_id', fitId).order('revision_number', { ascending: false }),
+    ) as FitRevision[]
+  ).map(upgrade);
 }
 
 export async function getRevision(id: string): Promise<FitRevision> {
-  return unwrap(await supabase.from('fit_revisions').select('*').eq('id', id).single()) as FitRevision;
+  return upgrade(unwrap(await supabase.from('fit_revisions').select('*').eq('id', id).single()) as FitRevision);
+}
+
+/** Reads older snapshots in the current shape (see upgradeSnapshot). */
+function upgrade(r: FitRevision): FitRevision {
+  return { ...r, snapshot: upgradeSnapshot(r.snapshot) };
 }
 
 export function parseConflict(err: AppError): ConflictInfo | null {
