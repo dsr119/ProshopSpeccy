@@ -21,12 +21,14 @@ reset role;
 set local role anon;
 select set_config('request.jwt.claims', '{"role": "anon"}', true);
 
-select throws_ok('select count(*) from public.customers', '42501', null, 'anon cannot read customers');
-select throws_ok('select count(*) from public.fit_revisions', '42501', null, 'anon cannot read revisions');
-select throws_ok('select count(*) from public.spec_photos', '42501', null, 'anon cannot read photo records');
-select throws_ok($$select public.save_fit_revision('00000000-0000-4000-8000-0000000c0001', 1, '{}'::jsonb)$$, '42501', null,
-  'anon cannot call save');
-select throws_ok($$select * from public.search_customers('pat')$$, '42501', null, 'anon cannot search');
+-- Anon has table access for open-link shops (05_open_access.sql); row-level
+-- security still hides everything in a closed shop.
+select is((select count(*)::int from public.customers), 0, 'anon sees no customers');
+select is((select count(*)::int from public.fit_revisions), 0, 'anon sees no revisions');
+select is((select count(*)::int from public.spec_photos), 0, 'anon sees no photo records');
+select throws_ok($$select public.save_fit_revision('00000000-0000-4000-8000-0000000c0001', 1, '{}'::jsonb)$$, 'PT404', null,
+  'anon cannot save');
+select is((select count(*)::int from public.search_customers('pat')), 0, 'anon search returns nothing');
 select is((select count(*)::int from storage.objects where bucket_id = 'spec-photos'), 0, 'anon cannot see photo files');
 
 reset role;

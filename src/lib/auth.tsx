@@ -11,7 +11,12 @@ export interface Membership {
   display_name: string | null;
   email: string | null;
   shop_name: string | null;
+  /** True when access comes from the shop's open link rather than a staff account. */
+  open?: boolean;
 }
+
+// Local storage keys and drafts for visitors using the open link.
+const SHARED_USER = 'shared';
 
 interface AuthState {
   loading: boolean;
@@ -36,24 +41,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadMembership = useCallback(async (uid: string | null) => {
     setMembershipError(null);
-    if (!uid) {
-      setMembership(null);
-      return;
+    if (uid) {
+      const { data, error } = await supabase
+        .from('staff_memberships')
+        .select('shop_id, role, active, display_name, email, shops(name)')
+        .eq('user_id', uid)
+        .eq('active', true)
+        .order('created_at')
+        .limit(1);
+      if (error) {
+        setMembershipError(error.message);
+        setMembership(null);
+        return;
+      }
+      const row = data?.[0] as unknown as (Omit<Membership, 'shop_name'> & { shops: { name: string } | null }) | undefined;
+      if (row) {
+        setMembership({ ...row, shop_name: row.shops?.name ?? null });
+        return;
+      }
     }
-    const { data, error } = await supabase
-      .from('staff_memberships')
-      .select('shop_id, role, active, display_name, email, shops(name)')
-      .eq('user_id', uid)
-      .eq('active', true)
+    // No staff membership: fall back to a shop that is open to anyone with the link.
+    const { data: shops, error: shopError } = await supabase
+      .from('shops')
+      .select('id, name')
+      .eq('open_access', true)
       .order('created_at')
       .limit(1);
-    if (error) {
-      setMembershipError(error.message);
+    if (shopError) {
+      setMembershipError(shopError.message);
       setMembership(null);
       return;
     }
-    const row = data?.[0] as unknown as (Omit<Membership, 'shop_name'> & { shops: { name: string } | null }) | undefined;
-    setMembership(row ? { ...row, shop_name: row.shops?.name ?? null } : null);
+    const shop = shops?.[0];
+    setMembership(
+      shop
+        ? { shop_id: shop.id, role: 'staff', active: true, display_name: null, email: null, shop_name: shop.name, open: true }
+        : null,
+    );
   }, []);
 
   const [sessionChecked, setSessionChecked] = useState(false);
@@ -129,6 +153,6 @@ export function useAuth(): AuthState {
 /** For pages behind the membership gate: the membership is always present. */
 export function useMembership(): Membership & { userId: string } {
   const { membership, userId } = useAuth();
-  if (!membership || !userId) throw new Error('No active membership');
-  return { ...membership, userId };
+  if (!membership) throw new Error('No active membership');
+  return { ...membership, userId: userId ?? SHARED_USER };
 }

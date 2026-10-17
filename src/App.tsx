@@ -33,7 +33,7 @@ function Gate() {
       </main>
     );
   }
-  if (!session) return <LoginPage />;
+  if (!session && !membership) return <LoginPage />;
   if (!membership) {
     return (
       <main className="page page--narrow">
@@ -42,7 +42,7 @@ function Gate() {
           <Notice tone="warn">Couldn't check your access: {membershipError}</Notice>
         ) : (
           <p>
-            You're signed in as <strong>{session.user.email}</strong>, but this account isn't an active member of a shop. Ask a
+            You're signed in as <strong>{session?.user.email}</strong>, but this account isn't an active member of a shop. Ask a
             shop administrator to add you.
           </p>
         )}
@@ -69,19 +69,23 @@ function Layout() {
             Customers
           </NavLink>
           {membership?.role === 'admin' && <NavLink to="/staff">Staff</NavLink>}
-          <NavLink to="/account" title={session?.user.email}>
-            Account
-          </NavLink>
-          <button
-            type="button"
-            className="linklike"
-            onClick={async () => {
-              await signOut();
-              navigate('/');
-            }}
-          >
-            Sign out
-          </button>
+          {session && (
+            <>
+              <NavLink to="/account" title={session.user.email}>
+                Account
+              </NavLink>
+              <button
+                type="button"
+                className="linklike"
+                onClick={async () => {
+                  await signOut();
+                  navigate('/');
+                }}
+              >
+                Sign out
+              </button>
+            </>
+          )}
         </nav>
       </header>
       <Outlet />
