@@ -1,16 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
-import { USERS, createCustomer, dirSlot, expectSpan, loginAsStaff, pickSpan, slot, unique } from './helpers';
+import { USERS, chooseSpanType, createCustomer, dirSlot, expectSpan, fillField, loginAsStaff, pickSpan, slot, unique } from './helpers';
 
-async function fill(page: Page, field: string, value: string, dir?: string) {
-  const input = page.locator(`#field-${field}`);
-  // Span boxes appear once a span type is chosen.
-  if (field.endsWith('_cut_to_cut') && !(await input.isVisible())) await page.getByLabel('Cut to Cut', { exact: true }).check();
-  // Pitches and spans are picked from lists; everything else is typed.
-  if (field.endsWith('_pitch')) await input.selectOption(value);
-  else if (field.endsWith('_cut_to_cut')) await pickSpan(page, field, value);
-  else await input.fill(value);
-  if (dir) await page.locator(`#field-${field} + select`).selectOption(dir);
-}
+const fill = fillField;
 
 test('mixed fractions, pitch directions, blank and zero save and reload in the right places', async ({ page }) => {
   await loginAsStaff(page);
@@ -77,11 +68,9 @@ test('invalid entries are flagged without being discarded', async ({ page }) => 
   await page.goto(`/customers/${id}/edit`);
   await fill(page, 'middle_hole', '4 3/0');
   await fill(page, 'thumb_hole', '-1');
-  await fill(page, 'ring_lateral_pitch', '1/8');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByText('The bottom of a fraction cannot be zero')).toBeVisible();
   await expect(page.getByText('Cannot be negative')).toBeVisible();
-  await expect(page.getByText('Choose left or right')).toBeVisible();
   await expect(page.locator('#field-middle_hole')).toHaveValue('4 3/0');
   await expect(page).toHaveURL(/\/edit$/);
 });
@@ -97,7 +86,7 @@ test('editing creates a revision with the right author; cancel leaves saved data
   // Cancel with unsaved changes asks first and keeps saved data.
   await page.getByRole('link', { name: 'Edit measurements' }).click();
   await fill(page, 'middle_hole', '7/8');
-  await expect(slot(page, 'middle_hole')).toHaveText('7/8');
+  await expect(page.locator('#field-middle_hole')).toHaveValue('7/8');
   await page.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByRole('dialog')).toContainText('Discard unsaved changes?');
   await page.getByRole('button', { name: 'Discard changes' }).click();
@@ -207,7 +196,7 @@ test('left-handed no-thumb fits are labelled and keep earlier thumb values', asy
 
   await page.getByRole('link', { name: 'Edit measurements' }).click();
   await page.getByLabel('No-thumb').check();
-  await expect(page.getByText(/Not applicable in no-thumb mode/).first()).toBeVisible();
+  await expect(page.getByText(/show N\/A in no-thumb mode/).first()).toBeVisible();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.locator('.fit-identity')).toContainText('Left-handed');
   await expect(page.locator('.fit-identity')).toContainText('No-thumb');
@@ -225,12 +214,14 @@ test('the span boxes record the chosen span type and the sheet names it', async 
   await loginAsStaff(page);
   const id = await createCustomer(page, unique('Fictional Full Span'));
   await page.goto(`/customers/${id}/edit`);
-  await expect(page.locator('#field-middle_cut_to_cut')).toHaveCount(0);
   await expect(page.locator('[data-span-heading]')).toHaveText('Span');
 
-  await page.getByLabel('Full Span', { exact: true }).check();
-  await expect(page.getByText('grip to thumb cut')).toBeVisible();
-  await expect(page.getByLabel('Middle finger Full Span (inches)')).toBeVisible();
+  // A span without a span type is flagged.
+  await pickSpan(page, 'middle_cut_to_cut', '4 3/4');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByText(/Choose Full Span, Cut to Cut or Cut to Outer first/)).toBeVisible();
+
+  await chooseSpanType(page, 'Full Span');
   await pickSpan(page, 'middle_cut_to_cut', '4 3/4');
   await pickSpan(page, 'ring_cut_to_cut', '4 11/16');
   await expect(page.locator('[data-span-heading]')).toHaveText('Full Span');

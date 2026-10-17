@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createCustomer, loginAsStaff, pickSpan, unique } from './helpers';
+import { chooseSpanType, createCustomer, fillField, loginAsStaff, unique } from './helpers';
 
 // Long but valid values, to prove nothing clips or overlaps.
 const LONG: Record<string, string | [string, string]> = {
@@ -27,14 +27,10 @@ async function seedLongValues(page: Page) {
   await page.goto(`/customers/${id}/edit`);
   await page.getByLabel('Right-handed').check();
   await page.getByLabel('Thumb-in').check();
-  await page.getByLabel('Cut to Outer', { exact: true }).check();
+  await chooseSpanType(page, 'Cut to Outer');
   for (const [field, v] of Object.entries(LONG)) {
     const [text, dir] = Array.isArray(v) ? v : [v, undefined];
-    const input = page.locator(`#field-${field}`);
-    if (dir) await input.selectOption(text);
-    else if (field.endsWith('_cut_to_cut')) await pickSpan(page, field, text);
-    else await input.fill(text);
-    if (dir) await page.locator(`#field-${field} + select`).selectOption(dir);
+    await fillField(page, field, text, dir);
   }
   await page.locator('#field-fitting_notes').fill('FICTIONAL: grip pressure notes for layout testing.');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
