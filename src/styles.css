@@ -1052,3 +1052,92 @@ a:focus-visible {
   cursor: pointer;
   font-weight: 600;
 }
+
+/* Two-wheel picker sheet (spans). */
+.wheel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.wheel-sheet {
+  width: 100%;
+  max-width: 480px;
+  background: #1c1c1e;
+  color: #fff;
+  border-radius: 14px 14px 0 0;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.wheel-sheet__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid #333;
+  font-size: 0.95rem;
+}
+.wheel-sheet__action {
+  background: none;
+  border: 0;
+  color: #8e8e93;
+  font: inherit;
+  font-size: 1rem;
+  padding: 0.4rem 0.2rem;
+  min-height: 44px;
+  cursor: pointer;
+}
+.wheel-sheet__action--done {
+  color: #0a84ff;
+  font-weight: 600;
+}
+.wheel-sheet__wheels {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin: 0.5rem 0 1rem;
+  /* Fade the wheels toward the top and bottom, like a phone picker. */
+  -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
+  mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
+}
+.wheel-sheet__band {
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  background: #2c2c2e;
+  border-radius: 8px;
+  pointer-events: none;
+}
+.wheel {
+  position: relative;
+  width: 7rem;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+.wheel::-webkit-scrollbar {
+  display: none;
+}
+.wheel:focus-visible {
+  outline: 2px solid #0a84ff;
+  border-radius: 8px;
+}
+.wheel__item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  scroll-snap-align: start;
+  font-size: 1.5rem;
+  color: #8e8e93;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.wheel__item.is-on {
+  color: #fff;
+  font-size: 1.8rem;
+}
