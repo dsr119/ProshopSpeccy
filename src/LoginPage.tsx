@@ -30,7 +30,7 @@ export function LoginPage() {
     // shouldCreateUser: false keeps sign-in invite-only.
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { shouldCreateUser: false, emailRedirectTo: window.location.origin },
+      options: { shouldCreateUser: false, emailRedirectTo: window.location.origin + import.meta.env.BASE_URL },
     });
     setBusy(false);
     if (error) setError(error.message);

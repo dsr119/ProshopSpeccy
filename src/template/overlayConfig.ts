@@ -11,7 +11,7 @@
 
 import type { FieldKey } from '../measurements/schema';
 
-export const TEMPLATE_SRC = '/assets/specSheet550wide.png';
+export const TEMPLATE_SRC = `${import.meta.env.BASE_URL}assets/specSheet550wide.png`;
 export const TEMPLATE_SIZE = 550;
 
 export const FINGER_MAPPING = {
