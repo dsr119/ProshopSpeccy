@@ -12,8 +12,14 @@ import {
   isPitchKind,
   PITCH_AMOUNTS,
   SPAN_FIELDS,
+  SPAN_FRACTIONS,
+  SPAN_WHOLES,
+  decimalHint,
+  joinSpan,
+  splitSpan,
   SPAN_TYPE_HINTS,
   SPAN_TYPE_LABELS,
+  THUMB_INSERT_TYPES,
   snapshotToDraft,
   validateDraft,
   type Draft,
@@ -456,7 +462,7 @@ function FieldControl({
   const errId = `${id}-error`;
   const describedBy = error ? errId : undefined;
 
-  if (def.kind === 'enum_hand' || def.kind === 'enum_thumb_mode' || def.kind === 'enum_span_type') {
+  if (def.kind === 'enum_hand' || def.kind === 'enum_thumb_mode' || def.kind === 'enum_span_type' || def.kind === 'enum_thumb_insert') {
     const options =
       def.kind === 'enum_hand'
         ? [
@@ -470,10 +476,12 @@ function FieldControl({
               ['no_thumb', 'No-thumb'],
               ['', 'Not recorded'],
             ]
-          : [
-              ...(Object.entries(SPAN_TYPE_LABELS) as Array<[SpanType, string]>).map(([v, l]) => [v, l]),
-              ['', 'Not recorded'],
-            ];
+          : def.kind === 'enum_thumb_insert'
+            ? [...THUMB_INSERT_TYPES.map((t) => [t, t]), ['', 'Not recorded']]
+            : [
+                ...(Object.entries(SPAN_TYPE_LABELS) as Array<[SpanType, string]>).map(([v, l]) => [v, l]),
+                ['', 'Not recorded'],
+              ];
     return (
       <div className="field" role="radiogroup" aria-labelledby={`${id}-label`}>
         <span id={`${id}-label`} className="field__label">
@@ -535,7 +543,7 @@ function FieldControl({
             <option value="">Not recorded</option>
             {amounts.map((a) => (
               <option key={a} value={a}>
-                {a}
+                {a === '0' ? '0"' : `${a}"  (${decimalHint(a)})`}
               </option>
             ))}
           </select>
@@ -548,6 +556,59 @@ function FieldControl({
             {DIR_OPTIONS[def.kind as 'pitch_lateral' | 'pitch_fr'].map(([v, label]) => (
               <option key={v} value={v}>
                 {label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {error && (
+          <span id={errId} className="field-error">
+            {error}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  if ((SPAN_FIELDS as readonly FieldKey[]).includes(def.key)) {
+    // Two wheels, like a date picker: whole inches, then sixteenths. A saved value that isn't on the wheels stays listed.
+    const split = splitSpan(value.text);
+    const legacy = value.text.trim() !== '' && !split;
+    const whole = split?.whole ?? '';
+    const fraction = split?.fraction ?? '0';
+    return (
+      <div className={`field${error ? ' field--invalid' : ''}`}>
+        <label htmlFor={id} className="field__label">
+          {def.label}
+          <span className="muted"> (inches)</span>
+        </label>
+        <div className="field__row">
+          <select
+            id={id}
+            value={legacy ? value.text : whole}
+            onChange={(e) => onChange({ text: joinSpan(e.target.value, fraction) })}
+            onFocus={onFocus}
+            aria-invalid={!!error}
+            aria-describedby={describedBy}
+          >
+            <option value="">Not recorded</option>
+            {legacy && <option value={value.text}>{value.text}</option>}
+            {SPAN_WHOLES.map((w) => (
+              <option key={w} value={w}>
+                {w}"
+              </option>
+            ))}
+          </select>
+          <select
+            id={`${id}-fraction`}
+            aria-label={`${def.label} fraction`}
+            value={fraction}
+            disabled={!whole || whole === SPAN_WHOLES[SPAN_WHOLES.length - 1]}
+            onChange={(e) => onChange({ text: joinSpan(whole, e.target.value) })}
+            onFocus={onFocus}
+          >
+            {SPAN_FRACTIONS.map((f) => (
+              <option key={f} value={f}>
+                {f === '0' ? '0"' : `${f}"  (${decimalHint(f)})`}
               </option>
             ))}
           </select>

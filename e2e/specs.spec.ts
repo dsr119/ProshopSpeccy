@@ -1,12 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
-import { USERS, createCustomer, loginAsStaff, slot, unique } from './helpers';
+import { USERS, createCustomer, dirSlot, expectSpan, loginAsStaff, pickSpan, slot, unique } from './helpers';
 
 async function fill(page: Page, field: string, value: string, dir?: string) {
   const input = page.locator(`#field-${field}`);
   // Span boxes appear once a span type is chosen.
   if (field.endsWith('_cut_to_cut') && !(await input.isVisible())) await page.getByLabel('Cut to Cut', { exact: true }).check();
-  // Pitch amounts are picked from a list; everything else is typed.
+  // Pitches and spans are picked from lists; everything else is typed.
   if (field.endsWith('_pitch')) await input.selectOption(value);
+  else if (field.endsWith('_cut_to_cut')) await pickSpan(page, field, value);
   else await input.fill(value);
   if (dir) await page.locator(`#field-${field} + select`).selectOption(dir);
 }
@@ -23,7 +24,7 @@ test('mixed fractions, pitch directions, blank and zero save and reload in the r
   await fill(page, 'ring_hole', '0');
   await fill(page, 'thumb_hole', '1 1/16');
   await fill(page, 'middle_cut_to_cut', '4 3/8');
-  await fill(page, 'ring_cut_to_cut', '4-5/16');
+  await fill(page, 'ring_cut_to_cut', '4 5/16');
   await fill(page, 'middle_actual_cut', '4.5');
   await fill(page, 'middle_lateral_pitch', '1/8', 'right');
   await fill(page, 'middle_fr_pitch', '1/4', 'forward');
@@ -32,8 +33,8 @@ test('mixed fractions, pitch directions, blank and zero save and reload in the r
   await fill(page, 'middle_oval', '1/16 oval');
 
   // Selecting a box on the sheet focuses its form control.
-  await page.locator('.sheet [data-field="ring_actual_cut"]').click();
-  await expect(page.locator('#field-ring_actual_cut')).toBeFocused();
+  await page.locator('.sheet [data-field="bridge"]').click();
+  await expect(page.locator('#field-bridge')).toBeFocused();
 
   await page.getByLabel(/Change note/).fill('First fitting');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
@@ -44,15 +45,20 @@ test('mixed fractions, pitch directions, blank and zero save and reload in the r
   await expect(slot(page, 'ring_hole')).toHaveText('0');
   await expect(slot(page, 'thumb_hole')).toHaveText('1 1/16');
   await expect(slot(page, 'middle_cut_to_cut')).toHaveText('4 3/8');
-  await expect(slot(page, 'ring_cut_to_cut')).toHaveText('4-5/16');
-  await expect(slot(page, 'middle_actual_cut')).toHaveText('4.5');
-  await expect(slot(page, 'middle_lateral_pitch')).toHaveText(/Lat\s*1\/8 →Right/);
-  await expect(slot(page, 'middle_fr_pitch')).toHaveText(/F\/R\s*1\/4 ↑Forward/);
-  await expect(slot(page, 'thumb_fr_pitch')).toHaveText(/F\/R\s*3\/8 ↓Reverse/);
-  await expect(slot(page, 'thumb_oval_angle')).toHaveText('15°');
+  await expect(slot(page, 'ring_cut_to_cut')).toHaveText('4 5/16');
+  // Pitches print as fractions in the box on their arrow; finger lateral is signed.
+  await expect(slot(page, 'middle_lateral_pitch')).toHaveText('+1/8');
+  await expect(dirSlot(page, 'middle_fr_pitch', 'forward')).toHaveText('1/4');
+  await expect(dirSlot(page, 'middle_fr_pitch', 'reverse')).toHaveText('');
+  await expect(dirSlot(page, 'thumb_fr_pitch', 'reverse')).toHaveText('3/8');
+  await expect(dirSlot(page, 'thumb_fr_pitch', 'forward')).toHaveText('');
+  // Fields kept off the drawn sheet still show in the text table.
+  await page.getByText('All measurements as text').click();
+  await expect(page.locator('.sheet-table tr', { hasText: 'Middle span actual-cut' })).toContainText('4.5');
+  await expect(page.locator('.sheet-table tr', { hasText: 'Thumb oval angle' })).toContainText('15°');
   // Blank stays blank (not zero).
-  await expect(slot(page, 'ring_actual_cut')).toHaveText('–');
-  await expect(slot(page, 'ring_actual_cut')).toHaveClass(/slot--empty/);
+  await expect(slot(page, 'bridge')).toHaveText('–');
+  await expect(slot(page, 'bridge')).toHaveClass(/slot--empty/);
   await expect(slot(page, 'ring_hole')).toHaveClass(/slot--value/);
   await expect(page.locator('.fit-identity')).toContainText('Right-handed');
   await expect(page.locator('.fit-identity')).toContainText('Thumb-in');
@@ -177,13 +183,13 @@ test('a failed save keeps the entered values and can be retried', async ({ page 
   await page.route('**/rest/v1/rpc/save_fit_revision', (route) => route.abort('internetdisconnected'));
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByText(/Couldn't reach the server/)).toBeVisible();
-  await expect(page.locator('#field-middle_cut_to_cut')).toHaveValue('4 1/2');
+  await expectSpan(page, 'middle_cut_to_cut', '4 1/2');
 
   // Reloading the tab keeps the unsaved work too.
   await page.unroute('**/rest/v1/rpc/save_fit_revision');
   await page.reload();
   await expect(page.getByText('Your unsaved changes from earlier in this tab were restored.')).toBeVisible();
-  await expect(page.locator('#field-middle_cut_to_cut')).toHaveValue('4 1/2');
+  await expectSpan(page, 'middle_cut_to_cut', '4 1/2');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(slot(page, 'middle_cut_to_cut')).toHaveText('4 1/2');
 });
@@ -209,7 +215,7 @@ test('left-handed no-thumb fits are labelled and keep earlier thumb values', asy
   await expect(slot(page, 'middle_cut_to_cut')).toHaveText('N/A');
   // Orientation is labelled, not silently mirrored.
   await expect(page.locator('.sheet-legend')).toContainText('provisional');
-  await expect(page.locator('.sheet__label').first()).toHaveText('Middle');
+  await expect(page.locator('.sheet__name').first()).toHaveText('MIDDLE');
 
   await page.getByText('All measurements as text').click();
   await expect(page.locator('.sheet-table tr', { hasText: 'Thumb hole size' })).toContainText('saved, not applicable');
@@ -224,9 +230,9 @@ test('the span boxes record the chosen span type and the sheet names it', async 
 
   await page.getByLabel('Full Span', { exact: true }).check();
   await expect(page.getByText('grip to thumb cut')).toBeVisible();
-  await expect(page.getByLabel(/^Middle finger Full Span/)).toBeVisible();
-  await page.locator('#field-middle_cut_to_cut').fill('4 3/4');
-  await page.locator('#field-ring_cut_to_cut').fill('4 11/16');
+  await expect(page.getByLabel('Middle finger Full Span (inches)')).toBeVisible();
+  await pickSpan(page, 'middle_cut_to_cut', '4 3/4');
+  await pickSpan(page, 'ring_cut_to_cut', '4 11/16');
   await expect(page.locator('[data-span-heading]')).toHaveText('Full Span');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/customers/${id}$`));
