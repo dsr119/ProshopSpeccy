@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMembership } from '../lib/auth';
 import { toAppError, type AppError } from '../lib/errors';
 import { ErrorBanner } from '../components/ui';
-import { createCustomer, findPossibleDuplicates, validateCustomer, type CustomerInput, type DuplicateRow } from './api';
+import { EMPTY_CUSTOMER, createCustomer, findPossibleDuplicates, validateCustomer, type CustomerInput, type DuplicateRow } from './api';
 
 export function CustomerFields({
   value,
@@ -36,6 +36,37 @@ export function CustomerFields({
         <input type="tel" value={value.phone} onChange={(e) => onChange({ ...value, phone: e.target.value })} />
         {errors.phone && <span className="field-error">{errors.phone}</span>}
       </label>
+      <label className="checkbox">
+        <input type="checkbox" checked={value.phone_mobile} onChange={(e) => onChange({ ...value, phone_mobile: e.target.checked })} />
+        Mobile
+      </label>
+      <label>
+        Email <span className="muted">(optional)</span>
+        <input type="email" value={value.email} onChange={(e) => onChange({ ...value, email: e.target.value })} />
+        {errors.email && <span className="field-error">{errors.email}</span>}
+      </label>
+      <label>
+        Address <span className="muted">(optional)</span>
+        <input autoComplete="street-address" value={value.address} onChange={(e) => onChange({ ...value, address: e.target.value })} />
+        {errors.address && <span className="field-error">{errors.address}</span>}
+      </label>
+      <div className="form__row">
+        <label>
+          City
+          <input value={value.city} onChange={(e) => onChange({ ...value, city: e.target.value })} />
+          {errors.city && <span className="field-error">{errors.city}</span>}
+        </label>
+        <label>
+          State
+          <input value={value.state} onChange={(e) => onChange({ ...value, state: e.target.value })} />
+          {errors.state && <span className="field-error">{errors.state}</span>}
+        </label>
+        <label>
+          Zip code
+          <input inputMode="numeric" value={value.zip} onChange={(e) => onChange({ ...value, zip: e.target.value })} />
+          {errors.zip && <span className="field-error">{errors.zip}</span>}
+        </label>
+      </div>
       <label>
         Notes <span className="muted">(optional)</span>
         <textarea rows={3} value={value.notes} onChange={(e) => onChange({ ...value, notes: e.target.value })} />
@@ -49,7 +80,7 @@ export function NewCustomerPage() {
   const { shop_id } = useMembership();
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const [value, setValue] = useState<CustomerInput>({ name: params.get('name') ?? '', phone: '', notes: '' });
+  const [value, setValue] = useState<CustomerInput>({ ...EMPTY_CUSTOMER, name: params.get('name') ?? '' });
   const [errors, setErrors] = useState<Partial<Record<keyof CustomerInput, string>>>({});
   const [dupes, setDupes] = useState<DuplicateRow[]>([]);
   const [saving, setSaving] = useState(false);

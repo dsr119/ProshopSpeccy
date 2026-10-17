@@ -7,7 +7,7 @@ test('create a customer and find them by partial name in any case, or by phone',
   const id = await createCustomer(page, name, '(555) 019-8765');
   await expect(page.getByText('Customer created')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Create digital specs' }).first()).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Upload original sheet' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Add a photo' })).toBeVisible();
 
   await page.goto('/');
   const search = page.getByLabel('Search by name or phone');
@@ -56,8 +56,26 @@ test('blank names are refused and customer details can be edited', async ({ page
 
   const name = unique('Fictional Editable');
   await createCustomer(page, name);
-  await page.getByRole('button', { name: 'Edit customer details' }).click();
-  await page.getByRole('dialog').getByLabel(/^Phone/).fill('555 010 3333');
-  await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click();
-  await expect(page.locator('.customer-head')).toContainText('555 010 3333');
+  await page.getByRole('button', { name: 'Edit bowler details' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel(/^Phone/).fill('555 010 3333');
+  await dialog.getByLabel('Mobile').check();
+  await dialog.getByLabel(/^Email/).fill('casey@example.test');
+  await dialog.getByLabel(/^Address/).fill('100 Fictional Lane');
+  await dialog.getByLabel('City').fill('Springfield');
+  await dialog.getByLabel('State').fill('IL');
+  await dialog.getByLabel('Zip code').fill('62701');
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  // Bowler details sit at the top, like the paper sheet.
+  const bowler = page.locator('.bowler');
+  await expect(bowler).toContainText('555 010 3333');
+  await expect(bowler).toContainText('Mobile');
+  await expect(bowler).toContainText('casey@example.test');
+  await expect(bowler).toContainText('100 Fictional Lane');
+  await expect(bowler).toContainText('Springfield, IL 62701');
+  await dialog.getByLabel(/^Email/).waitFor({ state: 'detached' });
+  await page.getByRole('button', { name: 'Edit bowler details' }).click();
+  await dialog.getByLabel(/^Email/).fill('not an email');
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(dialog.getByText('Enter an email like name@example.com')).toBeVisible();
 });

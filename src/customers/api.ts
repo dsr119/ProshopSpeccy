@@ -6,6 +6,12 @@ export interface Customer {
   shop_id: string;
   name: string;
   phone: string | null;
+  phone_mobile: boolean;
+  email: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
   notes: string | null;
   last_spec_at: string | null;
   last_spec_by: string | null;
@@ -52,7 +58,62 @@ export async function getCustomer(id: string): Promise<Customer> {
 export interface CustomerInput {
   name: string;
   phone: string;
+  phone_mobile: boolean;
+  email: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
   notes: string;
+}
+
+export const EMPTY_CUSTOMER: CustomerInput = {
+  name: '',
+  phone: '',
+  phone_mobile: false,
+  email: '',
+  address: '',
+  city: '',
+  state: '',
+  zip: '',
+  notes: '',
+};
+
+export function customerInput(c: Customer): CustomerInput {
+  return {
+    name: c.name,
+    phone: c.phone ?? '',
+    phone_mobile: c.phone_mobile,
+    email: c.email ?? '',
+    address: c.address ?? '',
+    city: c.city ?? '',
+    state: c.state ?? '',
+    zip: c.zip ?? '',
+    notes: c.notes ?? '',
+  };
+}
+
+const LIMITS: Array<[keyof CustomerInput, number, string]> = [
+  ['email', 200, 'Email'],
+  ['address', 200, 'Address'],
+  ['city', 100, 'City'],
+  ['state', 50, 'State'],
+  ['zip', 20, 'Zip code'],
+];
+
+function row(input: CustomerInput) {
+  const blank = (v: string) => v.trim() || null;
+  return {
+    name: input.name.trim(),
+    phone: blank(input.phone),
+    phone_mobile: input.phone_mobile,
+    email: blank(input.email),
+    address: blank(input.address),
+    city: blank(input.city),
+    state: blank(input.state),
+    zip: blank(input.zip),
+    notes: blank(input.notes),
+  };
 }
 
 export function validateCustomer(input: CustomerInput): Partial<Record<keyof CustomerInput, string>> {
@@ -61,6 +122,8 @@ export function validateCustomer(input: CustomerInput): Partial<Record<keyof Cus
   else if (input.name.length > 200) errors.name = 'Keep the name under 200 characters';
   if (input.phone.length > 40) errors.phone = 'Phone is too long';
   if (input.notes.length > 4000) errors.notes = 'Keep notes under 4000 characters';
+  for (const [key, max, label] of LIMITS) if ((input[key] as string).length > max) errors[key] = `${label} is too long`;
+  if (input.email.trim() && !/^\S+@\S+\.\S+$/.test(input.email.trim())) errors.email = 'Enter an email like name@example.com';
   return errors;
 }
 
@@ -68,7 +131,7 @@ export async function createCustomer(shopId: string, input: CustomerInput): Prom
   return unwrap(
     await supabase
       .from('customers')
-      .insert({ shop_id: shopId, name: input.name.trim(), phone: input.phone.trim() || null, notes: input.notes.trim() || null })
+      .insert({ shop_id: shopId, ...row(input) })
       .select('*')
       .single(),
   ) as Customer;
@@ -78,7 +141,7 @@ export async function updateCustomer(id: string, input: CustomerInput): Promise<
   return unwrap(
     await supabase
       .from('customers')
-      .update({ name: input.name.trim(), phone: input.phone.trim() || null, notes: input.notes.trim() || null })
+      .update(row(input))
       .eq('id', id)
       .select('*')
       .single(),

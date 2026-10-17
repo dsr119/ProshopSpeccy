@@ -1,81 +1,85 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { toAppError, type AppError } from '../lib/errors';
 import { formatDateTime } from '../lib/format';
-import { useAsync } from '../lib/useAsync';
-import { ErrorBanner, Notice, Spinner } from '../components/ui';
-import { getCustomer } from '../customers/api';
-import { getCurrentFit } from '../fits/api';
-import { checkPhotoFile, listPhotos, signedUrls, updatePhoto, uploadPhoto, type SpecPhoto } from './api';
+import { ErrorBanner, Notice } from '../components/ui';
+import type { Customer } from '../customers/api';
+import { PHOTO_KIND_LABELS, checkPhotoFile, signedUrls, updatePhoto, uploadPhoto, type PhotoKind, type SpecPhoto } from './api';
 import { PhotoViewer } from './PhotoViewer';
 
 const ACCEPT = 'image/jpeg,image/png,image/webp,.heic,.heif';
 
+/** The old photos address now opens the Photos view on the customer page. */
 export function PhotosPage() {
   const { customerId = '' } = useParams();
   const [params] = useSearchParams();
-  const customer = useAsync(() => getCustomer(customerId), [customerId]);
-  const photos = useAsync(() => listPhotos(customerId), [customerId]);
-  const fit = useAsync(() => getCurrentFit(customerId), [customerId]);
+  return <Navigate replace to={`/customers/${customerId}?view=photos${params.get('upload') ? '&upload=1' : ''}`} />;
+}
+
+/** Photos of the paper spec sheet and of balls, one upload at a time. */
+export function PhotosPanel({
+  customer,
+  revisionId,
+  revisionNumber,
+  photos,
+  onChange,
+  startUpload,
+}: {
+  customer: Customer;
+  revisionId: string | null;
+  revisionNumber: number | null;
+  photos: SpecPhoto[];
+  onChange: (list: SpecPhoto[]) => void;
+  startUpload?: boolean;
+}) {
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<SpecPhoto | null>(null);
-  const [showUpload, setShowUpload] = useState(params.get('upload') === '1');
+  const [showUpload, setShowUpload] = useState(!!startUpload);
   const [justUploaded, setJustUploaded] = useState(false);
 
   useEffect(() => {
-    const list = photos.data ?? [];
-    setSelected((s) => (s && list.find((p) => p.id === s.id)) || list[0] || null);
-    signedUrls(list.map((p) => p.object_path))
+    setSelected((s) => (s && photos.find((p) => p.id === s.id)) || photos[0] || null);
+    signedUrls(photos.map((p) => p.object_path))
       .then(setUrls)
       .catch(() => setUrls({}));
-  }, [photos.data]);
+  }, [photos]);
 
-  const list = photos.data ?? [];
   return (
-    <main className="page">
-      <p className="breadcrumb">
-        <Link to={`/customers/${customerId}`}>← {customer.data?.name ?? 'Customer'}</Link>
-      </p>
+    <section className="photos-panel" aria-label="Photos">
       <div className="dashboard__head">
-        <h1>Original sheet photos</h1>
+        <h2>Photos</h2>
         {!showUpload && (
           <button type="button" className="btn btn--primary" onClick={() => setShowUpload(true)}>
-            Upload sheet
+            Add a photo
           </button>
         )}
       </div>
-      <p className="muted">
-        Photos are kept as reference only. Uploading never creates or changes digital measurements; transcribe values with Edit
-        measurements.
-      </p>
+      <p className="muted">Photos of the paper spec sheet or of balls. They never change the digital measurements.</p>
 
       {justUploaded && <Notice tone="success">Photo uploaded.</Notice>}
 
-      {showUpload && customer.data && (
+      {showUpload && (
         <UploadPanel
-          shopId={customer.data.shop_id}
-          customerId={customerId}
-          currentRevisionId={fit.data?.revision?.id ?? null}
-          currentRevisionNumber={fit.data?.revision?.revision_number ?? null}
+          shopId={customer.shop_id}
+          customerId={customer.id}
+          currentRevisionId={revisionId}
+          currentRevisionNumber={revisionNumber}
           onCancel={() => setShowUpload(false)}
           onUploaded={(p) => {
             setShowUpload(false);
             setJustUploaded(true);
-            photos.setData([p, ...list]);
+            onChange([p, ...photos]);
             setSelected(p);
           }}
         />
       )}
 
-      <ErrorBanner error={photos.error} onRetry={photos.reload} />
-      {photos.loading ? (
-        <Spinner />
-      ) : list.length === 0 ? (
+      {photos.length === 0 ? (
         <p className="empty">No photos yet.</p>
       ) : (
         <div className="photos">
-          <ul className="photo-list" aria-label="Photos">
-            {list.map((p) => (
+          <ul className="photo-list" aria-label="Photo list">
+            {photos.map((p) => (
               <li key={p.id}>
                 <button type="button" className={`photo-thumb${selected?.id === p.id ? ' photo-thumb--active' : ''}`} onClick={() => setSelected(p)}>
                   {urls[p.object_path] ? (
@@ -84,6 +88,9 @@ export function PhotosPage() {
                     <span className="photo-thumb__placeholder" />
                   )}
                   <span>
+                    <span className="tag">{PHOTO_KIND_LABELS[p.kind]}</span>
+                    {p.confirmed && <span className="tag tag--ok">Confirmed</span>}
+                    <br />
                     {p.caption || 'Untitled'}
                     <br />
                     <span className="muted">{formatDateTime(p.created_at)}</span>
@@ -98,7 +105,7 @@ export function PhotosPage() {
               <CaptionEditor
                 photo={selected}
                 onSaved={(p) => {
-                  photos.setData(list.map((x) => (x.id === p.id ? p : x)));
+                  onChange(photos.map((x) => (x.id === p.id ? p : x)));
                   setSelected(p);
                 }}
               />
@@ -106,7 +113,7 @@ export function PhotosPage() {
           )}
         </div>
       )}
-    </main>
+    </section>
   );
 }
 
@@ -116,7 +123,7 @@ function CaptionEditor({ photo, onSaved }: { photo: SpecPhoto; onSaved: (p: Spec
   const [error, setError] = useState<AppError | null>(null);
   useEffect(() => setCaption(photo.caption ?? ''), [photo]);
 
-  async function save(changes: { caption?: string | null; rotation?: number }) {
+  async function save(changes: { caption?: string | null; rotation?: number; confirmed?: boolean }) {
     setBusy(true);
     setError(null);
     try {
@@ -131,6 +138,28 @@ function CaptionEditor({ photo, onSaved }: { photo: SpecPhoto; onSaved: (p: Spec
   return (
     <div className="caption-editor no-print">
       <ErrorBanner error={error} />
+      {photo.kind === 'spec_sheet' && (
+        <label className="switch">
+          <input
+            type="checkbox"
+            role="switch"
+            checked={photo.confirmed}
+            disabled={busy}
+            onChange={(e) => save({ confirmed: e.target.checked })}
+          />
+          <span className="switch__track" aria-hidden="true" />
+          <span>
+            Digital spec sheet confirmed
+            {photo.confirmed && photo.confirmed_at && (
+              <span className="muted small">
+                {' '}
+                · {formatDateTime(photo.confirmed_at)}
+                {photo.confirmed_by ? ` by ${photo.confirmed_by}` : ''}
+              </span>
+            )}
+          </span>
+        </label>
+      )}
       <label>
         Caption
         <input value={caption} maxLength={500} onChange={(e) => setCaption(e.target.value)} />
@@ -169,6 +198,7 @@ function UploadPanel({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [rotation, setRotation] = useState(0);
   const [caption, setCaption] = useState('');
+  const [kind, setKind] = useState<PhotoKind | ''>('');
   const [linkRevision, setLinkRevision] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [error, setError] = useState<AppError | null>(null);
@@ -193,7 +223,7 @@ function UploadPanel({
   }
 
   async function upload() {
-    if (!file) return;
+    if (!file || !kind) return;
     setUploading(true);
     setError(null);
     try {
@@ -203,6 +233,7 @@ function UploadPanel({
         file,
         rotation,
         caption,
+        kind,
         revisionId: linkRevision ? currentRevisionId : null,
       });
       onUploaded(p);
@@ -213,9 +244,9 @@ function UploadPanel({
   }
 
   return (
-    <section className="panel upload" aria-label="Upload a sheet photo">
-      <h2>Upload a sheet photo</h2>
-      <p className="muted">JPEG, PNG or WebP, up to 15 MB. The original file is stored unchanged.</p>
+    <section className="panel upload" aria-label="Add a photo">
+      <h2>Add a photo</h2>
+      <p className="muted">One photo at a time. JPEG, PNG or WebP, up to 15 MB. The original file is stored unchanged.</p>
       <div className="form__actions">
         <label className="btn">
           Choose file
@@ -250,9 +281,20 @@ function UploadPanel({
             </span>
           </div>
           <div className="form">
+            <fieldset className="field" aria-required="true">
+              <legend className="field__label">Is this a spec sheet or a picture of a ball?</legend>
+              <div className="segmented">
+                {(Object.entries(PHOTO_KIND_LABELS) as Array<[PhotoKind, string]>).map(([v, label]) => (
+                  <label key={v}>
+                    <input type="radio" name="photo-kind" value={v} checked={kind === v} onChange={() => setKind(v)} />
+                    {v === 'ball' ? 'Picture of a ball' : label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
             <label>
               Caption <span className="muted">(optional)</span>
-              <input value={caption} maxLength={500} onChange={(e) => setCaption(e.target.value)} placeholder="e.g. 2019 paper sheet" />
+              <input value={caption} maxLength={500} onChange={(e) => setCaption(e.target.value)} placeholder={kind === 'ball' ? 'e.g. Phaze II, 15 lb' : 'e.g. 2019 paper sheet'} />
             </label>
             {currentRevisionId && (
               <label className="checkbox">
@@ -265,7 +307,7 @@ function UploadPanel({
       )}
       <ErrorBanner error={error ? `${error.message} Your photo is still selected, so you can try again.` : null} />
       <div className="form__actions">
-        <button type="button" className="btn btn--primary" disabled={!file || uploading} onClick={upload}>
+        <button type="button" className="btn btn--primary" disabled={!file || !kind || uploading} onClick={upload}>
           {uploading ? 'Uploading…' : error ? 'Retry upload' : 'Upload'}
         </button>
         <button type="button" className="btn" onClick={onCancel} disabled={uploading}>

@@ -108,3 +108,16 @@ export async function restoreRevision(revisionId: string, expectedLockVersion: n
   if (res.error) throw toAppError(res.error);
   return res.data as SaveResult;
 }
+
+/** Names already used for "Specs written by" in this shop, most recent first. */
+export async function listSpecAuthors(): Promise<string[]> {
+  const rows = unwrap(
+    await supabase
+      .from('fit_revisions')
+      .select('written_by:snapshot->>written_by')
+      .not('snapshot->>written_by', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(500),
+  ) as Array<{ written_by: string | null }>;
+  return [...new Set(rows.map((r) => r.written_by?.trim()).filter((n): n is string => !!n))];
+}

@@ -4,7 +4,8 @@ import { CHOICE_GROUPS, OVERLAY_SLOTS, SHEET_LABELS, TEMPLATE_H, TEMPLATE_W } fr
 import { fitFont, pitchText } from './SpecSheet';
 
 // The span type is the lettered picker and grips are choice boxes; the full span and cut to outer values share
-// the span boxes with cut to cut; the rest are kept in the record and the table but not drawn on the sheet.
+// the span boxes with cut to cut; ball motion and the author are in the footer under the drawing; the rest are
+// kept in the record and the table but not drawn on the sheet.
 const OFF_SHEET = new Set([
   'span_type',
   'finger_grips',
@@ -20,7 +21,7 @@ const OFF_SHEET = new Set([
   'thumb_oval',
   'thumb_oval_angle',
 ]);
-const sheetFields = FIELDS.filter((f) => !['identity', 'details'].includes(f.group) && !OFF_SHEET.has(f.key)).map((f) => f.key);
+const sheetFields = FIELDS.filter((f) => !['identity', 'motion', 'details'].includes(f.group) && !OFF_SHEET.has(f.key)).map((f) => f.key);
 
 function overlaps(a: { x: number; y: number; w: number; h: number }, b: typeof a) {
   return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;

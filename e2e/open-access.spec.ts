@@ -29,8 +29,9 @@ test('with the open link on, anyone can add a customer, save specs and upload a 
   await expect(page.getByText('Shared link').first()).toBeVisible();
 
   await page.goto(`/customers/${id}/photos`);
-  await page.getByRole('button', { name: 'Upload sheet' }).click();
+  await page.getByRole('button', { name: 'Add a photo' }).click();
   await page.locator('input[type=file]').first().setInputFiles(SAMPLE);
+  await page.getByLabel('Spec sheet', { exact: true }).check();
   await page.getByRole('button', { name: 'Upload', exact: true }).click();
   await expect(page.getByText('Photo uploaded.')).toBeVisible();
 

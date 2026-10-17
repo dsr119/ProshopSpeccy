@@ -84,6 +84,26 @@ describe('measurement schema', () => {
     expect(validateDraft(draftWith({ thumb_od: { text: '1' } })).thumb_od).toMatch(/7\/8, 1 1\/8/);
   });
 
+  it('records ball motion, one or two handed, and who wrote the specs', () => {
+    const d = draftWith({
+      play_style: { text: 'two_handed' },
+      rev_rate: { text: '450' },
+      axis_rotation: { text: '45' },
+      axis_tilt: { text: '12.5' },
+      speed: { text: '17.2' },
+      pap: { text: '5 1/2 over, 1/2 up' },
+      written_by: { text: 'Pat' },
+    });
+    expect(validateDraft(d)).toEqual({});
+    const s = draftToSnapshot(d);
+    expect(formatValue('play_style', s.play_style)).toBe('Two Handed');
+    expect(formatValue('rev_rate', s.rev_rate, { unit: true })).toBe('450 rpm');
+    expect(formatValue('axis_tilt', s.axis_tilt, { unit: true })).toBe('12.5°');
+    expect(formatValue('speed', s.speed, { unit: true })).toBe('17.2 mph');
+    expect(validateDraft(draftWith({ axis_rotation: { text: '91' } })).axis_rotation).toBe('Enter 0 to 90');
+    expect(validateDraft(draftWith({ speed: { text: '-3' } })).speed).toMatch(/negative/);
+  });
+
   it('limits pitch to 0–2 inches in 1/16 steps', () => {
     expect(PITCH_AMOUNTS).toHaveLength(33);
     expect(PITCH_AMOUNTS.slice(0, 5)).toEqual(['0', '1/16', '1/8', '3/16', '1/4']);

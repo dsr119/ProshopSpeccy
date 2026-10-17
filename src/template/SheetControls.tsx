@@ -31,6 +31,8 @@ export interface SheetEditor {
   draft: Draft;
   setField: (key: FieldKey, patch: Partial<{ text: string; dir: string }>) => void;
   onFocusField?: (key: FieldKey) => void;
+  /** Names that have written specs before, offered for "Written by". */
+  authors?: string[];
 }
 
 const FIRST_OF_AXIS = new Set(['forward', 'left']);

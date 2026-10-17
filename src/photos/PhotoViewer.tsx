@@ -64,7 +64,13 @@ export function PhotoViewer({ photo, url, rotationOverride }: { photo: SpecPhoto
           <div className="photo-viewer__box" style={{ width: boxW || undefined, height: boxW ? boxH : undefined }}>
             <img
               src={url}
-              alt={photo.caption ? `Original sheet: ${photo.caption}` : 'Original paper spec sheet'}
+              alt={
+                photo.kind === 'ball'
+                  ? `Ball photo${photo.caption ? `: ${photo.caption}` : ''}`
+                  : photo.caption
+                    ? `Original sheet: ${photo.caption}`
+                    : 'Original paper spec sheet'
+              }
               onLoad={(e) => setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
               onError={() => setFailed(true)}
               style={{
