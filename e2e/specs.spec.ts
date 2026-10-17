@@ -3,6 +3,8 @@ import { USERS, createCustomer, loginAsStaff, slot, unique } from './helpers';
 
 async function fill(page: Page, field: string, value: string, dir?: string) {
   const input = page.locator(`#field-${field}`);
+  // Span boxes appear once a span type is chosen.
+  if (field.endsWith('_cut_to_cut') && !(await input.isVisible())) await page.getByLabel('Cut to Cut', { exact: true }).check();
   // Pitch amounts are picked from a list; everything else is typed.
   if (field.endsWith('_pitch')) await input.selectOption(value);
   else await input.fill(value);
@@ -211,4 +213,27 @@ test('left-handed no-thumb fits are labelled and keep earlier thumb values', asy
 
   await page.getByText('All measurements as text').click();
   await expect(page.locator('.sheet-table tr', { hasText: 'Thumb hole size' })).toContainText('saved, not applicable');
+});
+
+test('the span boxes record the chosen span type and the sheet names it', async ({ page }) => {
+  await loginAsStaff(page);
+  const id = await createCustomer(page, unique('Fictional Full Span'));
+  await page.goto(`/customers/${id}/edit`);
+  await expect(page.locator('#field-middle_cut_to_cut')).toHaveCount(0);
+  await expect(page.locator('[data-span-heading]')).toHaveText('Span');
+
+  await page.getByLabel('Full Span', { exact: true }).check();
+  await expect(page.getByText('grip to thumb cut')).toBeVisible();
+  await expect(page.getByLabel(/^Middle finger Full Span/)).toBeVisible();
+  await page.locator('#field-middle_cut_to_cut').fill('4 3/4');
+  await page.locator('#field-ring_cut_to_cut').fill('4 11/16');
+  await expect(page.locator('[data-span-heading]')).toHaveText('Full Span');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/customers/${id}$`));
+
+  await expect(page.locator('[data-span-heading]')).toHaveText('Full Span');
+  await expect(slot(page, 'middle_cut_to_cut')).toHaveText('4 3/4');
+  const table = page.locator('.sheet-table');
+  await expect(table.locator('tr', { hasText: 'Span measured' })).toContainText('Full Span');
+  await expect(table.locator('tr', { hasText: 'Ring finger span' })).toContainText('4 11/16"');
 });

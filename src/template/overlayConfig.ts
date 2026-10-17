@@ -78,4 +78,7 @@ export const OVERLAY_LABELS: OverlayLabel[] = [
   { text: 'Thumb', x: 240, y: 386, w: 70, h: 18 },
 ];
 
+/** Covers the printed "Cut to Cut" heading so it can name the chosen span type instead. */
+export const SPAN_HEADING: Omit<OverlayLabel, 'text'> = { x: 200, y: 201, w: 150, h: 18 };
+
 export const pct = (v: number) => `${(v / TEMPLATE_SIZE) * 100}%`;

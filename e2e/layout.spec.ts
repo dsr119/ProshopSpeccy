@@ -27,6 +27,7 @@ async function seedLongValues(page: Page) {
   await page.goto(`/customers/${id}/edit`);
   await page.getByLabel('Right-handed').check();
   await page.getByLabel('Thumb-in').check();
+  await page.getByLabel('Cut to Switch Grip Cut', { exact: true }).check();
   for (const [field, v] of Object.entries(LONG)) {
     const [text, dir] = Array.isArray(v) ? v : [v, undefined];
     const input = page.locator(`#field-${field}`);
