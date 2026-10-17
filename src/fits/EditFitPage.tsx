@@ -9,14 +9,6 @@ import {
   GROUP_LABELS,
   draftToSnapshot,
   draftsEqual,
-  isPitchKind,
-  PITCH_AMOUNTS,
-  SPAN_FIELDS,
-  SPAN_FRACTIONS,
-  SPAN_WHOLES,
-  decimalHint,
-  joinSpan,
-  splitSpan,
   SPAN_TYPE_HINTS,
   SPAN_TYPE_LABELS,
   THUMB_INSERT_TYPES,
@@ -25,7 +17,6 @@ import {
   type Draft,
   type DraftErrors,
   type FieldDef,
-  type FieldGroup,
   type FieldKey,
   type SpanType,
 } from '../measurements/schema';
@@ -52,7 +43,8 @@ export function readStoredDraft(userId: string, customerId: string): StoredDraft
   }
 }
 
-const EDIT_GROUPS: FieldGroup[] = ['identity', 'middle', 'ring', 'spans', 'thumb', 'details'];
+/** Measurements kept in the record but not drawn on the sheet; they're edited under "More measurements". */
+const OFF_SHEET: FieldKey[] = ['middle_actual_cut', 'ring_actual_cut', 'thumb_oval', 'thumb_oval_angle'];
 
 export function EditFitPage() {
   const { customerId = '' } = useParams();
@@ -140,10 +132,9 @@ export function EditFitPage() {
   }
 
   function focusField(key: FieldKey) {
-    // A span box with no span type yet takes you to the span type choice.
-    const target = draft && !isFieldShown(key, draft) ? 'span_type' : key;
-    const el = document.getElementById(`field-${target}`) as HTMLElement | null;
+    const el = (document.querySelector(`[data-control="${key}"]`) ?? document.getElementById(`field-${key}`)) as HTMLElement | null;
     if (el) {
+      if (el.closest('details')) (el.closest('details') as HTMLDetailsElement).open = true;
       el.scrollIntoView({ block: 'center', behavior: 'smooth' });
       el.focus({ preventScroll: true });
     }
@@ -247,35 +238,70 @@ export function EditFitPage() {
         <div className="editor__sheet">
           <SpecSheet
             display={displayFromDraft(draft, visibleErrors)}
-            onSelectField={focusField}
+            editor={{ draft, setField, onFocusField: setActiveField }}
             activeField={activeField}
-            caption="Spec sheet preview. Select a value to jump to its field."
+            caption="Spec sheet. Tap a box to type or scroll its value."
           />
-          <p className="muted small">Select a box on the sheet to jump to its field. The preview shows unsaved values.</p>
+          <p className="muted small">
+            Tap a box to type or scroll its value. Tap F, C or CTO to choose the span measured.
+            {noThumb && ' Thumb and span boxes show N/A in no-thumb mode; their saved values are kept.'}
+          </p>
+          {Object.keys(visibleErrors).length > 0 && (
+            <ul className="sheet-errors" role="alert">
+              {FIELDS.filter((f) => visibleErrors[f.key]).map((f) => (
+                <li key={f.key}>
+                  <button type="button" className="linklike" onClick={() => focusField(f.key)}>
+                    {f.label}
+                  </button>
+                  : <span className="field-error">{visibleErrors[f.key]}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className="editor__form">
-          {EDIT_GROUPS.map((group) => (
-            <fieldset key={group} className="fieldset">
-              <legend>{GROUP_LABELS[group]}</legend>
-              {noThumb && (group === 'thumb' || group === 'spans') && (
-                <p className="banner banner--info small">
-                  Not applicable in no-thumb mode. Any values here are kept in the saved record and history, and show again if you
-                  switch back to thumb-in.
-                </p>
-              )}
-              {FIELDS.filter((f) => f.group === group && isFieldShown(f.key, draft)).map((f) => (
-                <FieldControl
-                  key={f.key}
-                  def={spanLabelled(f, draft)}
-                  value={draft[f.key]}
-                  error={visibleErrors[f.key]}
-                  onChange={(patch) => setField(f.key, patch)}
-                  onFocus={() => setActiveField(f.key)}
-                />
-              ))}
-            </fieldset>
-          ))}
+          <fieldset className="fieldset">
+            <legend>{GROUP_LABELS.identity}</legend>
+            {FIELDS.filter((f) => f.group === 'identity').map((f) => (
+              <FieldControl
+                key={f.key}
+                def={f}
+                value={draft[f.key]}
+                error={visibleErrors[f.key]}
+                onChange={(patch) => setField(f.key, patch)}
+                onFocus={() => setActiveField(f.key)}
+              />
+            ))}
+          </fieldset>
+
+          <fieldset className="fieldset">
+            <legend>{GROUP_LABELS.details}</legend>
+            {FIELDS.filter((f) => f.group === 'details').map((f) => (
+              <FieldControl
+                key={f.key}
+                def={f}
+                value={draft[f.key]}
+                error={visibleErrors[f.key]}
+                onChange={(patch) => setField(f.key, patch)}
+                onFocus={() => setActiveField(f.key)}
+              />
+            ))}
+          </fieldset>
+
+          <details className="fieldset more-measurements" open={OFF_SHEET.some((k) => !!visibleErrors[k])}>
+            <summary>More measurements</summary>
+            {FIELDS.filter((f) => OFF_SHEET.includes(f.key)).map((f) => (
+              <FieldControl
+                key={f.key}
+                def={f}
+                value={draft[f.key]}
+                error={visibleErrors[f.key]}
+                onChange={(patch) => setField(f.key, patch)}
+                onFocus={() => setActiveField(f.key)}
+              />
+            ))}
+          </details>
 
           <fieldset className="fieldset">
             <legend>Save</legend>
@@ -418,33 +444,6 @@ function safeSnapshot(draft: Draft) {
   }
 }
 
-/** Span values only appear once a span type is chosen (or a value is already there). */
-function isFieldShown(key: FieldKey, draft: Draft): boolean {
-  return !(SPAN_FIELDS as readonly FieldKey[]).includes(key) || !!draft.span_type.text || draft[key].text.trim() !== '';
-}
-
-/** "Middle finger span" becomes e.g. "Middle finger Full Span" once a type is chosen. */
-function spanLabelled(def: FieldDef, draft: Draft): FieldDef {
-  const type = draft.span_type.text as SpanType;
-  if (!(SPAN_FIELDS as readonly FieldKey[]).includes(def.key) || !SPAN_TYPE_LABELS[type]) return def;
-  return { ...def, label: def.label.replace(/span$/, SPAN_TYPE_LABELS[type]) };
-}
-
-const DIR_OPTIONS: Record<'pitch_lateral' | 'pitch_fr', Array<[string, string]>> = {
-  pitch_lateral: [
-    ['', 'Direction…'],
-    ['left', 'Left'],
-    ['right', 'Right'],
-    ['none', 'Neutral (zero)'],
-  ],
-  pitch_fr: [
-    ['', 'Direction…'],
-    ['forward', 'Forward'],
-    ['reverse', 'Reverse'],
-    ['none', 'Neutral (zero)'],
-  ],
-};
-
 function FieldControl({
   def,
   value,
@@ -521,106 +520,6 @@ function FieldControl({
   }
 
   const unit = def.unit === '°' ? 'degrees' : def.unit === 'in' ? 'inches' : null;
-
-  if (isPitchKind(def.kind)) {
-    // Values saved before the list existed (e.g. "0.125") stay selectable so they are never lost silently.
-    const amounts = value.text && !PITCH_AMOUNTS.includes(value.text) ? [value.text, ...PITCH_AMOUNTS] : PITCH_AMOUNTS;
-    return (
-      <div className={`field${error ? ' field--invalid' : ''}`}>
-        <label htmlFor={id} className="field__label">
-          {def.label}
-          <span className="muted"> (inches)</span>
-        </label>
-        <div className="field__row">
-          <select
-            id={id}
-            value={value.text}
-            onChange={(e) => onChange({ text: e.target.value })}
-            onFocus={onFocus}
-            aria-invalid={!!error}
-            aria-describedby={describedBy}
-          >
-            <option value="">Not recorded</option>
-            {amounts.map((a) => (
-              <option key={a} value={a}>
-                {a === '0' ? '0"' : `${a}"  (${decimalHint(a)})`}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label={`${def.label} direction`}
-            value={value.dir}
-            onChange={(e) => onChange({ dir: e.target.value })}
-            onFocus={onFocus}
-          >
-            {DIR_OPTIONS[def.kind as 'pitch_lateral' | 'pitch_fr'].map(([v, label]) => (
-              <option key={v} value={v}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
-        {error && (
-          <span id={errId} className="field-error">
-            {error}
-          </span>
-        )}
-      </div>
-    );
-  }
-
-  if ((SPAN_FIELDS as readonly FieldKey[]).includes(def.key)) {
-    // Two wheels, like a date picker: whole inches, then sixteenths. A saved value that isn't on the wheels stays listed.
-    const split = splitSpan(value.text);
-    const legacy = value.text.trim() !== '' && !split;
-    const whole = split?.whole ?? '';
-    const fraction = split?.fraction ?? '0';
-    return (
-      <div className={`field${error ? ' field--invalid' : ''}`}>
-        <label htmlFor={id} className="field__label">
-          {def.label}
-          <span className="muted"> (inches)</span>
-        </label>
-        <div className="field__row">
-          <select
-            id={id}
-            value={legacy ? value.text : whole}
-            onChange={(e) => onChange({ text: joinSpan(e.target.value, fraction) })}
-            onFocus={onFocus}
-            aria-invalid={!!error}
-            aria-describedby={describedBy}
-          >
-            <option value="">Not recorded</option>
-            {legacy && <option value={value.text}>{value.text}</option>}
-            {SPAN_WHOLES.map((w) => (
-              <option key={w} value={w}>
-                {w}"
-              </option>
-            ))}
-          </select>
-          <select
-            id={`${id}-fraction`}
-            aria-label={`${def.label} fraction`}
-            value={fraction}
-            disabled={!whole || whole === SPAN_WHOLES[SPAN_WHOLES.length - 1]}
-            onChange={(e) => onChange({ text: joinSpan(whole, e.target.value) })}
-            onFocus={onFocus}
-          >
-            {SPAN_FRACTIONS.map((f) => (
-              <option key={f} value={f}>
-                {f === '0' ? '0"' : `${f}"  (${decimalHint(f)})`}
-              </option>
-            ))}
-          </select>
-        </div>
-        {error && (
-          <span id={errId} className="field-error">
-            {error}
-          </span>
-        )}
-      </div>
-    );
-  }
 
   return (
     <div className={`field${error ? ' field--invalid' : ''}`}>

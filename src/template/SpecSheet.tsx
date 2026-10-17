@@ -1,4 +1,3 @@
-import type { KeyboardEvent } from 'react';
 import { parseMeasurement } from '../measurements/fraction';
 import {
   FIELD_BY_KEY,
@@ -32,6 +31,12 @@ import {
   pctY,
   type OverlaySlot,
 } from './overlayConfig';
+import { SlotControl, SpanTypeButtons, type SheetEditor } from './SheetControls';
+
+/** Boxes typed into directly in edit mode (the rest are scroll pickers). */
+function isTyped(slot: OverlaySlot) {
+  return slot.style !== 'pitch' && !slot.field.endsWith('_cut_to_cut') && FIELD_BY_KEY[slot.field].kind !== 'enum_thumb_insert';
+}
 
 export type SlotDisplay =
   | { state: 'value'; text: string; dir?: string }
@@ -100,14 +105,13 @@ function slotText(slot: OverlaySlot, d: SlotDisplay): string {
 
 interface SpecSheetProps {
   display: DisplayFn;
-  /** In edit mode, clicking a field on the sheet calls this to focus its form control. */
-  onSelectField?: (key: FieldKey) => void;
+  /** Edit mode: every box becomes a control on the picture. */
+  editor?: SheetEditor;
   activeField?: FieldKey | null;
   caption?: string;
 }
 
-export function SpecSheet({ display, onSelectField, activeField, caption }: SpecSheetProps) {
-  const interactive = !!onSelectField;
+export function SpecSheet({ display, editor, activeField, caption }: SpecSheetProps) {
   const spanDisplay = display('span_type');
   const spanType =
     spanDisplay.state === 'value'
@@ -116,20 +120,21 @@ export function SpecSheet({ display, onSelectField, activeField, caption }: Spec
   return (
     <figure className="sheet-figure">
       <div
-        className={`sheet${interactive ? ' sheet--interactive' : ''}`}
-        role="img"
+        className={`sheet${editor ? ' sheet--interactive' : ''}`}
+        role={editor ? 'group' : 'img'}
         aria-label={caption ?? 'Fitting spec sheet. The full list of values is available as text below.'}
       >
-        <SheetArtwork spanType={spanType} onSelectField={onSelectField} />
+        <SheetArtwork spanType={spanType} />
         {OVERLAY_SLOTS.map((slot) => {
           const d = forSlot(slot, display(slot.field));
           const text = slotText(slot, d);
           const { size, lines } = fitFont(text, slot.w, slot.h, slot.style === 'pitch' || slot.style === 'box' ? 20 : 14);
+          const typed = !!editor && d.state !== 'na' && isTyped(slot);
           const cls = [
             'slot',
             `slot--${slot.style}`,
             `slot--${d.state}`,
-            lines === 2 ? 'slot--wrap' : '',
+            lines === 2 && !typed ? 'slot--wrap' : '',
             activeField === slot.field ? 'slot--active' : '',
           ].join(' ');
           const style = {
@@ -137,28 +142,18 @@ export function SpecSheet({ display, onSelectField, activeField, caption }: Spec
             top: pctY(slot.y),
             width: pctX(slot.w),
             height: pctY(slot.h),
-            fontSize: `${(size / TEMPLATE_W) * 100}cqw`,
+            fontSize: `${((typed ? Math.min(slot.h * 0.6, 16) : size) / TEMPLATE_W) * 100}cqw`,
           };
           const where = slot.dir ? ` (${directionLabel(slot.dir).toLowerCase()})` : '';
           const label = FIELD_BY_KEY[slot.field].label + where;
           const key = slot.dir ? `${slot.field}:${slot.dir}` : slot.field;
           const content = d.state === 'empty' && slot.style !== 'line' ? <span className="slot__empty">–</span> : text;
-          if (interactive) {
+          if (editor && d.state !== 'na') {
             return (
-              <button
-                type="button"
-                key={key}
-                className={cls}
-                style={style}
-                data-field={slot.field}
-                data-dir={slot.dir}
-                title={`Edit ${label}`}
-                aria-label={`Edit ${label}`}
-                onClick={() => onSelectField?.(slot.field)}
-                onKeyDown={(e: KeyboardEvent) => e.key === 'Enter' && onSelectField?.(slot.field)}
-              >
-                {content}
-              </button>
+              <div key={key} className={cls} style={style} data-field={slot.field} data-dir={slot.dir} title={label}>
+                {!typed && <span aria-hidden="true">{content}</span>}
+                <SlotControl slot={slot} editor={editor} label={label} />
+              </div>
             );
           }
           return (
@@ -167,6 +162,7 @@ export function SpecSheet({ display, onSelectField, activeField, caption }: Spec
             </span>
           );
         })}
+        {editor && display('span_type').state !== 'na' && <SpanTypeButtons editor={editor} />}
       </div>
       <figcaption className="sheet-legend">
         <strong>Orientation{FINGER_MAPPING.provisional ? ' (provisional)' : ''}:</strong> {FINGER_MAPPING.viewDescription}. Left
@@ -187,7 +183,7 @@ function head(x1: number, y1: number, x2: number, y2: number) {
 }
 
 /** The drawn sheet: hole circles, pitch arrows, span arrows, dotted lines, captions and the span type picker. */
-function SheetArtwork({ spanType, onSelectField }: { spanType?: SpanType; onSelectField?: (key: FieldKey) => void }) {
+function SheetArtwork({ spanType }: { spanType?: SpanType }) {
   const types = SPAN_TYPE_ORDER;
   const first = SPAN_PICKER.cx - ((types.length - 1) * SPAN_PICKER.gap) / 2;
   return (
@@ -240,12 +236,7 @@ function SheetArtwork({ spanType, onSelectField }: { spanType?: SpanType; onSele
           const on = t === spanType;
           const cx = first + i * SPAN_PICKER.gap;
           return (
-            <g
-              key={t}
-              className={on ? 'is-on' : undefined}
-              onClick={onSelectField ? () => onSelectField('span_type') : undefined}
-              data-span-type={t}
-            >
+            <g key={t} className={on ? 'is-on' : undefined} data-span-type={t}>
               <circle cx={cx} cy={SPAN_PICKER.y} r={SPAN_PICKER.r} />
               <text x={cx} y={SPAN_PICKER.y + 4.5} style={SPAN_TYPE_LETTERS[t].length > 2 ? { fontSize: 9.5 } : undefined}>
                 {SPAN_TYPE_LETTERS[t]}

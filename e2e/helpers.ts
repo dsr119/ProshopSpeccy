@@ -70,3 +70,31 @@ export async function expectSpan(page: Page, field: string, value: string) {
   await expect(page.locator(`#field-${field}`)).toHaveValue(whole);
   await expect(page.locator(`#field-${field}-fraction`)).toHaveValue(fraction);
 }
+
+/** Chooses the span measured with the F / C / CTO circles on the sheet, unless it's already chosen. */
+export async function chooseSpanType(page: Page, label: 'Full Span' | 'Cut to Cut' | 'Cut to Outer') {
+  const button = page.getByRole('button', { name: label, exact: true });
+  if ((await button.getAttribute('aria-pressed')) !== 'true') await button.click();
+}
+
+/**
+ * Enters a value on the sheet. Pitch boxes are pickers per direction (finger
+ * lateral is one signed picker), spans are two wheels, everything else is typed.
+ */
+export async function fillField(page: Page, field: string, value: string, dir?: string) {
+  if (field.endsWith('_cut_to_cut')) {
+    if ((await page.locator('[data-control="span_type"][aria-pressed="true"]').count()) === 0) await chooseSpanType(page, 'Cut to Cut');
+    await pickSpan(page, field, value);
+  } else if (/^(middle|ring)_lateral_pitch$/.test(field)) {
+    const zero = !dir || dir === 'none' || value === '0';
+    await page.locator(`#field-${field}`).selectOption(zero ? value : `${dir === 'left' ? '-' : '+'}${value}`);
+  } else if (field.endsWith('_pitch')) {
+    const box = !dir || dir === 'none' ? (field.endsWith('fr_pitch') ? 'forward' : 'left') : dir;
+    await page.locator(`#field-${field}-${box}`).selectOption(value);
+  } else {
+    const input = page.locator(`#field-${field}`);
+    // Measurements kept off the sheet are under "More measurements".
+    if (!(await input.isVisible())) await page.getByText('More measurements').click();
+    await input.fill(value);
+  }
+}
