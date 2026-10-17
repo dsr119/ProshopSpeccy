@@ -57,18 +57,20 @@ export function dirSlot(page: Page, field: string, dir: string) {
   return page.locator(`.sheet [data-field="${field}"][data-dir="${dir}"]`);
 }
 
-/** Picks a span such as "4 3/8" on its two wheels: whole inches, then the fraction. */
+/** Picks a span such as "4 3/8" on the two-wheel picker: whole inches, then the fraction. */
 export async function pickSpan(page: Page, field: string, value: string) {
   const [whole, fraction = '0'] = value.split(' ');
-  await page.locator(`#field-${field}`).selectOption(whole);
-  if (fraction !== '0') await page.locator(`#field-${field}-fraction`).selectOption(fraction);
+  await page.locator(`#field-${field}`).click();
+  const picker = page.getByRole('dialog');
+  await picker.getByRole('listbox', { name: 'Inches' }).getByRole('option', { name: whole, exact: true }).click();
+  await picker.getByRole('listbox', { name: 'Fraction' }).getByRole('option', { name: fraction, exact: true }).click();
+  await picker.getByRole('button', { name: 'Done' }).click();
+  await expect(picker).toHaveCount(0);
 }
 
-/** Expects a span's two wheels to show this value. */
+/** Expects a span box to hold this value. */
 export async function expectSpan(page: Page, field: string, value: string) {
-  const [whole, fraction = '0'] = value.split(' ');
-  await expect(page.locator(`#field-${field}`)).toHaveValue(whole);
-  await expect(page.locator(`#field-${field}-fraction`)).toHaveValue(fraction);
+  await expect(page.locator(`#field-${field}`)).toHaveAttribute('data-value', value);
 }
 
 /** Chooses the span measured with the F / C / CTO circles on the sheet, unless it's already chosen. */

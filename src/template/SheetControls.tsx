@@ -2,7 +2,9 @@
 // scrolled right on the picture. Pickers are native selects (a scroll wheel on
 // phones) kept invisible over the box, which still shows the formatted value.
 
-import type { CSSProperties } from 'react';
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { WheelPicker, type WheelColumn } from '../components/WheelPicker';
 import { parseMeasurement } from '../measurements/fraction';
 import {
   FIELD_BY_KEY,
@@ -104,50 +106,7 @@ export function SlotControl({ slot, editor, label }: { slot: OverlaySlot; editor
     );
   }
 
-  if (FIELD_BY_KEY[slot.field].kind === 'length' && slot.style === 'box' && slot.field.endsWith('_cut_to_cut')) {
-    // Spans scroll on two wheels, like a date: whole inches on the left half, sixteenths on the right.
-    const split = splitSpan(v.text);
-    const legacy = v.text.trim() !== '' && !split;
-    const whole = split?.whole ?? '';
-    const fraction = split?.fraction ?? '0';
-    const half: CSSProperties = { width: '50%' };
-    return (
-      <>
-        <select
-          {...common}
-          aria-label={`${label}, whole inches`}
-          className="slot__picker"
-          style={{ ...half, left: 0 }}
-          value={legacy ? v.text : whole}
-          onChange={(e) => setField(slot.field, { text: joinSpan(e.target.value, fraction) })}
-        >
-          <option value="">–</option>
-          {legacy && <option value={v.text}>{v.text}</option>}
-          {SPAN_WHOLES.map((w) => (
-            <option key={w} value={w}>
-              {w}"
-            </option>
-          ))}
-        </select>
-        <select
-          id={`${id}-fraction`}
-          aria-label={`${label}, fraction`}
-          data-control={slot.field}
-          onFocus={focus}
-          className="slot__picker"
-          style={{ ...half, left: '50%' }}
-          value={fraction}
-          onChange={(e) => setField(slot.field, { text: joinSpan(whole || SPAN_WHOLES[2], e.target.value) })}
-        >
-          {SPAN_FRACTIONS.map((f) => (
-            <option key={f} value={f}>
-              {inches(f)}
-            </option>
-          ))}
-        </select>
-      </>
-    );
-  }
+  if (slot.field.endsWith('_cut_to_cut')) return <SpanWheels slot={slot} editor={editor} label={label} />;
 
   if (FIELD_BY_KEY[slot.field].kind === 'enum_thumb_insert') {
     return (
@@ -201,6 +160,52 @@ export function SpanTypeButtons({ editor }: { editor: SheetEditor }) {
           />
         );
       })}
+    </>
+  );
+}
+
+const SPAN_COLUMNS: WheelColumn[] = [
+  { label: 'Inches', options: SPAN_WHOLES.map((w) => ({ value: w, label: w })) },
+  { label: 'Fraction', options: SPAN_FRACTIONS.map((f) => ({ value: f, label: f })) },
+];
+
+/** A span box opens one picker with two wheels side by side: whole inches and sixteenths, like a date. */
+function SpanWheels({ slot, editor, label }: { slot: OverlaySlot; editor: SheetEditor; label: string }) {
+  const [open, setOpen] = useState(false);
+  const v = editor.draft[slot.field];
+  const split = splitSpan(v.text);
+  const close = () => setOpen(false);
+  return (
+    <>
+      <button
+        type="button"
+        id={controlId(slot)}
+        className="slot__picker"
+        aria-label={label}
+        aria-haspopup="dialog"
+        data-control={slot.field}
+        data-value={v.text}
+        onFocus={() => editor.onFocusField?.(slot.field)}
+        onClick={() => setOpen(true)}
+      />
+      {open &&
+        createPortal(
+          <WheelPicker
+            title={label}
+            columns={SPAN_COLUMNS}
+            initial={[split?.whole ?? SPAN_WHOLES[2], split?.fraction ?? '0']}
+            onDone={([whole, fraction]) => {
+              editor.setField(slot.field, { text: joinSpan(whole, fraction) });
+              close();
+            }}
+            onClear={() => {
+              editor.setField(slot.field, { text: '' });
+              close();
+            }}
+            onClose={close}
+          />,
+          document.body,
+        )}
     </>
   );
 }
