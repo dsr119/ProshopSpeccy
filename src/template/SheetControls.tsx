@@ -13,15 +13,19 @@ import {
   SPAN_TYPE_LABELS,
   SPAN_TYPE_ORDER,
   SPAN_WHOLES,
+  SPAN_FIELDS,
   THUMB_INSERT_TYPES,
   decimalHint,
+  gripNumber,
+  isInterchangeable,
+  pickerOptions,
   joinSpan,
   splitSpan,
   type Draft,
   type FieldKey,
   type SpanType,
 } from '../measurements/schema';
-import { SPAN_PICKER, pctX, pctY, type OverlaySlot } from './overlayConfig';
+import { SPAN_PICKER, pctX, pctY, type ChoiceGroup, type OverlaySlot } from './overlayConfig';
 
 export interface SheetEditor {
   draft: Draft;
@@ -106,11 +110,39 @@ export function SlotControl({ slot, editor, label }: { slot: OverlaySlot; editor
     );
   }
 
-  if (slot.field.endsWith('_cut_to_cut')) return <SpanWheels slot={slot} editor={editor} label={label} />;
+  if ((SPAN_FIELDS as readonly FieldKey[]).includes(slot.field)) return <SpanWheels slot={slot} editor={editor} label={label} />;
+
+  const options = pickerOptions(slot.field, draft);
+  if (options) {
+    // Holes, grip sizes, bridge and slug size scroll through their fixed sizes.
+    const grip = slot.field.endsWith('_grip_size');
+    return (
+      <select {...common} className="slot__picker" value={v.text} onChange={(e) => setField(slot.field, { text: e.target.value })}>
+        <option value="">–</option>
+        {withLegacy(options, v.text).map((o) => (
+          <option key={o} value={o}>
+            {grip && gripNumber(o) != null ? `${o}"  (${gripNumber(o)})` : `${o}"`}
+          </option>
+        ))}
+      </select>
+    );
+  }
 
   if (FIELD_BY_KEY[slot.field].kind === 'enum_thumb_insert') {
     return (
-      <select {...common} className="slot__picker" value={v.text} onChange={(e) => setField(slot.field, { text: e.target.value })}>
+      <select
+        {...common}
+        className="slot__picker"
+        value={v.text}
+        onChange={(e) => {
+          setField(slot.field, { text: e.target.value });
+          // Interchangeable inserts have no hole or slug size of their own.
+          if (isInterchangeable(e.target.value)) {
+            setField('thumb_hole', { text: '' });
+            setField('thumb_od', { text: '' });
+          }
+        }}
+      >
         <option value="">–</option>
         {withLegacy([...THUMB_INSERT_TYPES], v.text).map((t) => (
           <option key={t} value={t}>
@@ -136,9 +168,8 @@ export function SlotControl({ slot, editor, label }: { slot: OverlaySlot; editor
   );
 }
 
-/** Tap targets over the F / C / CTO circles; tapping the chosen one again clears it. */
-export function SpanTypeButtons({ editor }: { editor: SheetEditor }) {
-  const current = editor.draft.span_type.text as SpanType | '';
+/** Tap targets over the F / C / CTO circles; each shows that span type's saved spans. */
+export function SpanTypeButtons({ editor, current }: { editor: SheetEditor; current: SpanType }) {
   const first = SPAN_PICKER.cx - ((SPAN_TYPE_ORDER.length - 1) * SPAN_PICKER.gap) / 2;
   const r = SPAN_PICKER.r + 3;
   return (
@@ -155,7 +186,7 @@ export function SpanTypeButtons({ editor }: { editor: SheetEditor }) {
             aria-label={SPAN_TYPE_LABELS[t]}
             aria-pressed={current === t}
             style={{ left: pctX(cx - r), top: pctY(SPAN_PICKER.y - r), width: pctX(2 * r), height: pctY(2 * r) }}
-            onClick={() => editor.setField('span_type', { text: current === t ? '' : t })}
+            onClick={() => editor.setField('span_type', { text: t })}
             onFocus={() => editor.onFocusField?.('span_type')}
           />
         );
@@ -206,6 +237,35 @@ function SpanWheels({ slot, editor, label }: { slot: OverlaySlot; editor: SheetE
           />,
           document.body,
         )}
+    </>
+  );
+}
+
+/** Tap targets over a row of boxes such as Grips / No Grips; tapping the chosen one again clears it. */
+export function ChoiceButtons({ group, value, editor }: { group: ChoiceGroup; value?: string; editor: SheetEditor }) {
+  function choose(next: string) {
+    editor.setField(group.field, { text: next });
+    // Without grips there is no grip type or grip size, and the hole is a plain drilled size.
+    if (group.field === 'finger_grips' && next !== 'grips') {
+      for (const key of ['grip_type', 'middle_grip_size', 'ring_grip_size'] as const) editor.setField(key, { text: '' });
+    }
+  }
+  return (
+    <>
+      {group.options.map((o, i) => (
+        <button
+          key={o.value}
+          type="button"
+          className="sheet__pick sheet__pick--box"
+          id={i === 0 ? `field-${group.field}` : undefined}
+          data-control={group.field}
+          aria-label={o.label}
+          aria-pressed={value === o.value}
+          style={{ left: pctX(o.x), top: pctY(o.y), width: pctX(o.w), height: pctY(o.h) }}
+          onClick={() => choose(value === o.value ? '' : o.value)}
+          onFocus={() => editor.onFocusField?.(group.field)}
+        />
+      ))}
     </>
   );
 }

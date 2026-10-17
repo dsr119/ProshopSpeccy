@@ -12,7 +12,7 @@ select set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-8000-000000
 insert into t_result values ('first', public.save_fit_revision(
   '00000000-0000-4000-8000-0000000c0002', 0,
   '{"hand": "left", "thumb_mode": "thumb_in",
-    "middle_hole": {"entered": "0"}, "ring_hole": {"entered": ""}, "thumb_hole": null,
+    "middle_actual_cut": {"entered": "0"}, "ring_hole": {"entered": ""}, "thumb_hole": null,
     "middle_cut_to_cut": {"entered": "4 3/8"},
     "middle_lateral_pitch": {"entered": "1/8", "dir": "left"},
     "ring_fr_pitch": {"entered": "0", "dir": "none"}}'::jsonb,
@@ -31,7 +31,7 @@ select is(
 
 -- Blank and zero stay distinct; notation and exact value preserved.
 select is(
-  (select snapshot -> 'middle_hole' from public.fit_revisions where id = (select (value ->> 'revision_id')::uuid from t_result where label = 'first')),
+  (select snapshot -> 'middle_actual_cut' from public.fit_revisions where id = (select (value ->> 'revision_id')::uuid from t_result where label = 'first')),
   '{"entered": "0", "n": 0, "d": 1}'::jsonb, 'zero is stored as a measured zero');
 select is(
   (select snapshot -> 'ring_hole' from public.fit_revisions where id = (select (value ->> 'revision_id')::uuid from t_result where label = 'first')),
@@ -49,7 +49,7 @@ select ok(
 -- Saving identical values is a no-op.
 insert into t_result values ('same', public.save_fit_revision(
   '00000000-0000-4000-8000-0000000c0002', 1,
-  '{"hand": "left", "thumb_mode": "thumb_in", "middle_hole": {"entered": "0"},
+  '{"hand": "left", "thumb_mode": "thumb_in", "middle_actual_cut": {"entered": "0"},
     "middle_cut_to_cut": {"entered": "4 3/8"}, "middle_lateral_pitch": {"entered": "1/8", "dir": "left"},
     "ring_fr_pitch": {"entered": "0", "dir": "none"}}'::jsonb));
 select is((select (value ->> 'created')::boolean from t_result where label = 'same'), false, 'unchanged save creates nothing');

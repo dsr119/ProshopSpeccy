@@ -6,6 +6,12 @@ import {
   formatValue,
   isNotApplicable,
   PITCH_AMOUNTS,
+  BRIDGE_SIZES,
+  GRIP_SIZES,
+  HOLE_SIZES,
+  spanField,
+  upgradeSnapshot,
+  type Snapshot,
   SPAN_FRACTIONS,
   SPAN_WHOLES,
   decimalHint,
@@ -37,11 +43,45 @@ describe('measurement schema', () => {
     expect(s.middle_cut_to_cut).toEqual({ entered: '4 3/8', n: 35, d: 8 });
   });
 
-  it('needs a span type before span values', () => {
-    expect(validateDraft(draftWith({ middle_cut_to_cut: { text: '4 3/8' } })).middle_cut_to_cut).toMatch(/Full Span/);
-    expect(validateDraft(draftWith({ span_type: { text: 'full_span' }, middle_cut_to_cut: { text: '4 3/8' } }))).toEqual({});
-    const s = draftToSnapshot(draftWith({ span_type: { text: 'cut_to_outer' }, ring_cut_to_cut: { text: '4' } }));
+  it('saves each span type separately and reads older span-typed snapshots', () => {
+    const d = draftWith({ span_type: { text: 'cut_to_outer' }, middle_cut_to_cut: { text: '4 3/8' }, middle_cut_to_outer: { text: '5' } });
+    expect(validateDraft(d)).toEqual({});
+    const s = draftToSnapshot(d);
     expect(formatValue('span_type', s.span_type)).toBe('Cut to Outer');
+    expect(formatValue('middle_cut_to_cut', s.middle_cut_to_cut)).toBe('4 3/8');
+    expect(formatValue('middle_cut_to_outer', s.middle_cut_to_outer)).toBe('5');
+    expect(spanField('ring', 'full_span')).toBe('ring_full_span');
+    expect(spanField('ring', '')).toBe('ring_cut_to_cut');
+    // Before each type had its own keys, a full span was kept in the cut-to-cut keys.
+    const old = { ...emptySnapshot(), span_type: 'full_span', middle_cut_to_cut: { entered: '4 3/16', n: 67, d: 16 } } as Record<string, unknown>;
+    delete old.middle_full_span;
+    const up = upgradeSnapshot(old as unknown as Snapshot);
+    expect(up.middle_full_span).toEqual({ entered: '4 3/16', n: 67, d: 16 });
+    expect(up.middle_cut_to_cut).toBeNull();
+  });
+
+  it('limits holes, grips, bridge and slug sizes to their lists', () => {
+    expect(HOLE_SIZES[0]).toBe('1/4');
+    expect(HOLE_SIZES.at(-1)).toBe('1 1/4');
+    expect(HOLE_SIZES).toHaveLength(65);
+    expect(GRIP_SIZES[0]).toEqual(['17/32', '-1']);
+    expect(GRIP_SIZES[2]).toEqual(['9/16', '0']);
+    expect(GRIP_SIZES.at(-2)).toEqual(['7/8', '10']);
+    expect(GRIP_SIZES.at(-1)).toEqual(['29/32', '11']);
+    expect(BRIDGE_SIZES).toEqual(['1/8', '3/16', '1/4', '5/16', '3/8', '7/16', '1/2']);
+    expect(validateDraft(draftWith({ middle_hole: { text: '55/64' } }))).toEqual({});
+    expect(validateDraft(draftWith({ middle_hole: { text: '1 5/16' } })).middle_hole).toMatch(/1\/4 to 1 1\/4/);
+    // With grips the finger hole is one of three sizes, and the grip size comes from the grip list.
+    const grips = { finger_grips: { text: 'grips' }, grip_type: { text: 'vaccu' } };
+    expect(validateDraft(draftWith({ ...grips, middle_hole: { text: '31/32' }, middle_grip_size: { text: '37/64' } }))).toEqual({});
+    expect(validateDraft(draftWith({ ...grips, middle_hole: { text: '55/64' } })).middle_hole).toMatch(/7\/8, 31\/32, 1 1\/32/);
+    expect(validateDraft(draftWith({ middle_grip_size: { text: '37/64' } })).middle_grip_size).toMatch(/grips/);
+    expect(formatValue('middle_grip_size', { entered: '37/64', n: 37, d: 64 })).toBe('37/64 (0.5)');
+    expect(validateDraft(draftWith({ bridge: { text: '9/16' } })).bridge).toBeDefined();
+    // Interchangeable thumb inserts take no hole or slug size; a thumb slug does.
+    expect(validateDraft(draftWith({ thumb_insert_type: { text: 'JOPO' }, thumb_hole: { text: '1' } })).thumb_hole).toMatch(/interchangeable/);
+    expect(validateDraft(draftWith({ thumb_insert_type: { text: 'Thumb Slug' }, thumb_hole: { text: '1' }, thumb_od: { text: '1 1/8' } }))).toEqual({});
+    expect(validateDraft(draftWith({ thumb_od: { text: '1' } })).thumb_od).toMatch(/7\/8, 1 1\/8/);
   });
 
   it('limits pitch to 0–2 inches in 1/16 steps', () => {

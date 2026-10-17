@@ -22,7 +22,7 @@ test('with the open link on, anyone can add a customer, save specs and upload a 
 
   const id = await createCustomer(page, unique('Fictional Open Link'));
   await page.getByRole('link', { name: 'Create digital specs' }).first().click();
-  await page.locator('#field-middle_hole').fill('3/4');
+  await page.locator('#field-middle_hole').selectOption('3/4');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/customers/${id}$`));
   await page.goto(`/customers/${id}/history`);

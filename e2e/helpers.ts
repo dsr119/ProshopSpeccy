@@ -81,11 +81,13 @@ export async function chooseSpanType(page: Page, label: 'Full Span' | 'Cut to Cu
 
 /**
  * Enters a value on the sheet. Pitch boxes are pickers per direction (finger
- * lateral is one signed picker), spans are two wheels, everything else is typed.
+ * lateral is one signed picker), spans are two wheels on the chosen span type,
+ * sizes are lists, and the rest is typed.
  */
 export async function fillField(page: Page, field: string, value: string, dir?: string) {
-  if (field.endsWith('_cut_to_cut')) {
-    if ((await page.locator('[data-control="span_type"][aria-pressed="true"]').count()) === 0) await chooseSpanType(page, 'Cut to Cut');
+  const span = /^(middle|ring)_(cut_to_cut|full_span|cut_to_outer)$/.exec(field);
+  if (span) {
+    await chooseSpanType(page, SPAN_TYPE_BUTTONS[span[2]]);
     await pickSpan(page, field, value);
   } else if (/^(middle|ring)_lateral_pitch$/.test(field)) {
     const zero = !dir || dir === 'none' || value === '0';
@@ -97,6 +99,17 @@ export async function fillField(page: Page, field: string, value: string, dir?: 
     const input = page.locator(`#field-${field}`);
     // Measurements kept off the sheet are under "More measurements".
     if (!(await input.isVisible())) await page.getByText('More measurements').click();
-    await input.fill(value);
+    // Holes, grip sizes, bridge and slug size scroll through a list; the rest are typed.
+    if ((await input.evaluate((el) => el.tagName)) === 'SELECT') await input.selectOption(value);
+    else await input.fill(value);
   }
+}
+
+const SPAN_TYPE_BUTTONS = { cut_to_cut: 'Cut to Cut', full_span: 'Full Span', cut_to_outer: 'Cut to Outer' } as const;
+
+/** Chooses Grips or No Grips above the bridge, and STD or Vaccu when there are grips. */
+export async function chooseGrips(page: Page, grips: 'Grips' | 'No Grips', type?: 'STD' | 'Vaccu') {
+  const button = page.getByRole('button', { name: grips, exact: true });
+  if ((await button.getAttribute('aria-pressed')) !== 'true') await button.click();
+  if (type) await page.getByRole('button', { name: type, exact: true }).click();
 }

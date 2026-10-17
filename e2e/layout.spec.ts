@@ -1,16 +1,18 @@
 import { expect, test, type Page } from '@playwright/test';
-import { chooseSpanType, createCustomer, fillField, loginAsStaff, unique } from './helpers';
+import { createCustomer, fillField, loginAsStaff, unique } from './helpers';
 
 // Long but valid values, to prove nothing clips or overlaps.
 const LONG: Record<string, string | [string, string]> = {
-  middle_hole: '1 63/64',
-  ring_hole: '123456.123456',
-  thumb_hole: '1 15/16',
+  middle_hole: '1 15/64',
+  ring_hole: '1 13/64',
+  thumb_hole: '1 15/64',
+  thumb_od: '1 3/8',
+  bridge: '7/16',
   middle_oval: 'wide 1/16 oval toward palm',
   ring_oval: '1/32',
   thumb_oval: '3/64 oval, 45 deg',
-  middle_cut_to_cut: '5 15/16',
-  ring_cut_to_cut: '6',
+  middle_cut_to_outer: '5 15/16',
+  ring_cut_to_outer: '6',
   middle_actual_cut: '5 1/16',
   ring_actual_cut: '123456 99/100',
   middle_lateral_pitch: ['1 15/16', 'right'],
@@ -27,7 +29,6 @@ async function seedLongValues(page: Page) {
   await page.goto(`/customers/${id}/edit`);
   await page.getByLabel('Right-handed').check();
   await page.getByLabel('Thumb-in').check();
-  await chooseSpanType(page, 'Cut to Outer');
   for (const [field, v] of Object.entries(LONG)) {
     const [text, dir] = Array.isArray(v) ? v : [v, undefined];
     await fillField(page, field, text, dir);
@@ -125,8 +126,8 @@ test('printing warns when there are unsaved edits', async ({ page }) => {
   await loginAsStaff(page);
   const id = await seedLongValues(page);
   await page.goto(`/customers/${id}/edit`);
-  await page.locator('#field-middle_hole').fill('2');
+  await page.locator('#field-middle_hole').selectOption('1/2');
   await page.goto(`/customers/${id}/print`);
   await expect(page.getByText(/Printing uses the last saved values/)).toBeVisible();
-  await expect(page.locator('.print-sheet [data-field="middle_hole"]')).toHaveText('1 63/64');
+  await expect(page.locator('.print-sheet [data-field="middle_hole"]')).toHaveText('1 15/64');
 });
