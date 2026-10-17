@@ -23,7 +23,6 @@ import {
 } from '../measurements/schema';
 import {
   CHOICE_GROUPS,
-  FINGER_MAPPING,
   OVERLAY_SLOTS,
   SHEET_ARROWS,
   SHEET_CIRCLES,
@@ -198,14 +197,63 @@ export function SpecSheet({ display, editor, activeField, caption }: SpecSheetPr
         {editor && display('span_type').state !== 'na' && <SpanTypeButtons editor={editor} current={spanType} />}
         {editor && choices.map(({ group, value }) => <ChoiceButtons key={group.field} group={group} value={value} editor={editor} />)}
       </div>
-      <figcaption className="sheet-legend">
-        <strong>Orientation{FINGER_MAPPING.provisional ? ' (provisional)' : ''}:</strong> {FINGER_MAPPING.viewDescription}. Left
-        upper hole = {FINGER_MAPPING.leftUpperHole}, right upper hole = {FINGER_MAPPING.rightUpperHole}. The layout is the same for
-        left- and right-handed bowlers. Units: inches. Pitches show in the box on their arrow; finger lateral pitch
-        is minus for left and plus for right. Spans show the type picked with F, C or CTO; every type is saved. “–” means
-        not recorded; N/A means not applicable (no-thumb mode, or no hole or slug size with an interchangeable thumb insert).
-      </figcaption>
+      <SheetFooter display={display} editor={editor} activeField={activeField} />
     </figure>
+  );
+}
+
+/** Ball motion and who wrote the specs, along the bottom of the sheet. */
+export const FOOTER_FIELDS: FieldKey[] = ['rev_rate', 'axis_rotation', 'axis_tilt', 'speed', 'pap', 'written_by'];
+
+function SheetFooter({ display, editor, activeField }: { display: DisplayFn; editor?: SheetEditor; activeField?: FieldKey | null }) {
+  return (
+    <dl className="sheet-footer">
+      {FOOTER_FIELDS.map((key) => {
+        const f = FIELD_BY_KEY[key];
+        const d = display(key);
+        const unit = f.unit && f.unit !== 'in' ? f.unit : null;
+        const cls = ['sheet-footer__cell', `slot--${d.state}`, activeField === key ? 'slot--active' : '']
+          .filter(Boolean)
+          .join(' ');
+        return (
+          <div key={key} className={cls} data-field={key}>
+            <dt>
+              <label htmlFor={editor ? `field-${key}` : undefined}>{f.shortLabel}</label>
+              {unit && <span className="muted"> ({unit})</span>}
+            </dt>
+            <dd>
+              {editor ? (
+                <input
+                  id={`field-${key}`}
+                  data-control={key}
+                  className="sheet-footer__input"
+                  type="text"
+                  inputMode={f.kind === 'stat' ? 'decimal' : 'text'}
+                  autoComplete="off"
+                  list={key === 'written_by' && editor.authors?.length ? 'spec-authors' : undefined}
+                  placeholder={key === 'written_by' ? 'Choose or type a name' : '–'}
+                  value={editor.draft[key].text}
+                  aria-invalid={d.state === 'invalid'}
+                  onChange={(e) => editor.setField(key, { text: e.target.value })}
+                  onFocus={() => editor.onFocusField?.(key)}
+                />
+              ) : d.state === 'value' ? (
+                d.text
+              ) : (
+                <span className="slot__empty">–</span>
+              )}
+            </dd>
+          </div>
+        );
+      })}
+      {editor?.authors && (
+        <datalist id="spec-authors">
+          {editor.authors.map((a) => (
+            <option key={a} value={a} />
+          ))}
+        </datalist>
+      )}
+    </dl>
   );
 }
 
@@ -307,7 +355,7 @@ function SheetArtwork({
   );
 }
 
-const GROUP_ORDER: FieldGroup[] = ['identity', 'fingers', 'middle', 'ring', 'spans', 'thumb', 'details'];
+const GROUP_ORDER: FieldGroup[] = ['identity', 'fingers', 'middle', 'ring', 'spans', 'thumb', 'motion', 'details'];
 
 /** Accessible, printable text version of the complete sheet. */
 export function SheetTable({ snapshot }: { snapshot: Snapshot | null }) {

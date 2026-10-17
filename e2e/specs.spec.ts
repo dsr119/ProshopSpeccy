@@ -201,8 +201,6 @@ test('left-handed no-thumb fits are labelled and keep earlier thumb values', asy
   await expect(page.locator('.fit-identity')).toContainText('No-thumb');
   await expect(slot(page, 'thumb_hole')).toHaveText('N/A');
   await expect(slot(page, 'middle_cut_to_cut')).toHaveText('N/A');
-  // Orientation is labelled, not silently mirrored.
-  await expect(page.locator('.sheet-legend')).toContainText('provisional');
   await expect(page.locator('.sheet__name').first()).toHaveText('MIDDLE');
 
   await page.getByText('All measurements as text').click();
@@ -257,4 +255,37 @@ test('grips add a grip type and grip sizes, and limit the finger holes', async (
   await expect(slot(page, 'bridge')).toHaveText('1/4');
   await expect(slot(page, 'thumb_hole')).toHaveText('N/A');
   await expect(page.locator('.sheet [data-choice="vaccu"]')).toHaveClass(/is-on/);
+});
+
+test('ball motion, one or two handed and who wrote the specs save with the sheet', async ({ page }) => {
+  await loginAsStaff(page);
+  const id = await createCustomer(page, unique('Fictional Ball Motion'));
+  await page.goto(`/customers/${id}/edit`);
+  // The bowler block is at the top of the editor, with hand and style.
+  await expect(page.locator('.bowler')).toBeVisible();
+  await page.locator('.bowler').getByLabel('Two Handed', { exact: true }).check();
+  await page.getByLabel('Right-handed').check();
+  await page.locator('#field-rev_rate').fill('450');
+  await page.locator('#field-axis_rotation').fill('45');
+  await page.locator('#field-axis_tilt').fill('12');
+  await page.locator('#field-speed').fill('17.5');
+  await page.locator('#field-pap').fill('5 1/2 over, 1/2 up');
+  await page.locator('#field-written_by').fill('Fictional Pat');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/customers/${id}$`));
+
+  await expect(page.locator('.bowler')).toContainText('Two Handed');
+  await expect(page.locator('.bowler')).toContainText('Right-handed');
+  const footer = page.locator('.sheet-footer');
+  await expect(footer.locator('[data-field="rev_rate"]')).toContainText('450');
+  await expect(footer.locator('[data-field="speed"]')).toContainText('17.5');
+  await expect(footer.locator('[data-field="pap"]')).toContainText('5 1/2 over, 1/2 up');
+  await expect(footer.locator('[data-field="written_by"]')).toContainText('Fictional Pat');
+
+  // Names used before are offered next time.
+  await page.getByRole('link', { name: 'Edit measurements' }).click();
+  await expect(page.locator('#spec-authors option[value="Fictional Pat"]')).toHaveCount(1);
+  await page.locator('#field-axis_rotation').fill('95');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByText('Enter 0 to 90').first()).toBeVisible();
 });

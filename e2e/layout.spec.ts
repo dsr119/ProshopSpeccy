@@ -95,7 +95,7 @@ test('the sheet stays legible without clipping at phone, tablet and desktop size
   await page.pdf({ path: 'test-results/screens/print.pdf', format: 'Letter', printBackground: true });
 });
 
-test('phone view toggles between the digital sheet and the original photo', async ({ page }) => {
+test('the customer page switches between the digital sheet and photos', async ({ page }) => {
   await loginAsStaff(page);
   const id = await seedLongValues(page);
   await page.goto(`/customers/${id}/photos?upload=1`);
@@ -104,22 +104,28 @@ test('phone view toggles between the digital sheet and the original photo', asyn
     mimeType: 'image/png',
     buffer: (await import('node:fs')).readFileSync('public/assets/specSheet550wide.png'),
   });
+  await page.getByLabel('Spec sheet', { exact: true }).check();
   await page.getByRole('button', { name: 'Upload', exact: true }).click();
   await expect(page.getByText('Photo uploaded.')).toBeVisible();
 
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto(`/customers/${id}`);
-  await expect(page.locator('.compare__sheet')).toBeVisible();
-  await expect(page.locator('.compare__photo')).toBeHidden();
-  await page.getByRole('button', { name: 'Original photo' }).click();
-  await expect(page.locator('.compare__photo')).toBeVisible();
-  await expect(page.locator('.compare__sheet')).toBeHidden();
+  // Bowler details come first, then the two buttons.
+  const bowlerBox = await page.locator('.bowler').boundingBox();
+  const tabsBox = await page.locator('.view-tabs').boundingBox();
+  expect(bowlerBox!.y).toBeLessThan(tabsBox!.y);
+  await expect(page.locator('.customer-sheet .sheet')).toBeVisible();
+  await expect(page.locator('.photos-panel')).toHaveCount(0);
+  await page.getByRole('button', { name: /^Photos/ }).click();
+  await expect(page.locator('.photos-panel')).toBeVisible();
+  await expect(page.locator('.customer-sheet')).toHaveCount(0);
+  await expect(page.getByAltText(/Original/)).toBeVisible();
   await page.screenshot({ path: 'test-results/screens/customer-phone-photo.png', fullPage: true });
 
-  await page.setViewportSize({ width: 1280, height: 900 });
-  await expect(page.locator('.compare__photo')).toBeVisible();
-  await expect(page.locator('.compare__sheet')).toBeVisible();
-  await page.screenshot({ path: 'test-results/screens/customer-desktop-side-by-side.png', fullPage: true });
+  await page.setViewportSize({ width: 820, height: 1180 });
+  await page.getByRole('button', { name: 'Digital spec sheet' }).click();
+  await expect(page.locator('.customer-sheet .sheet')).toBeVisible();
+  await page.screenshot({ path: 'test-results/screens/customer-ipad.png', fullPage: true });
 });
 
 test('printing warns when there are unsaved edits', async ({ page }) => {

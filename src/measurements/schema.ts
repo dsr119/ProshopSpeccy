@@ -13,14 +13,17 @@ export type FieldKind =
   | 'enum_thumb_insert'
   | 'enum_grips'
   | 'enum_grip_type'
+  | 'enum_play_style'
   | 'text_short'
   | 'text_long'
   | 'length'
   | 'angle'
   | 'pitch_lateral'
-  | 'pitch_fr';
+  | 'pitch_fr'
+  /** A plain number with its own unit and range, such as rev rate or speed. */
+  | 'stat';
 
-export type FieldGroup = 'identity' | 'fingers' | 'middle' | 'ring' | 'spans' | 'thumb' | 'details';
+export type FieldGroup = 'identity' | 'fingers' | 'middle' | 'ring' | 'spans' | 'thumb' | 'motion' | 'details';
 
 export interface FieldDef {
   key: FieldKey;
@@ -28,13 +31,14 @@ export interface FieldDef {
   label: string;
   shortLabel: string;
   group: FieldGroup;
-  unit?: 'in' | '°';
+  unit?: 'in' | '°' | 'rpm' | 'mph';
   /** Not applicable on the sheet when the fit is in no-thumb mode. */
   thumbDependent?: boolean;
 }
 
 export const FIELD_KEYS = [
   'hand',
+  'play_style',
   'thumb_mode',
   'fit_label',
   'finger_grips',
@@ -68,6 +72,12 @@ export const FIELD_KEYS = [
   'thumb_oval_angle',
   'thumb_od',
   'thumb_insert_type',
+  'rev_rate',
+  'axis_rotation',
+  'axis_tilt',
+  'speed',
+  'pap',
+  'written_by',
   'finger_insert_details',
   'thumb_system_details',
   'fitting_notes',
@@ -77,6 +87,7 @@ export type FieldKey = (typeof FIELD_KEYS)[number];
 
 export const FIELDS: FieldDef[] = [
   { key: 'hand', kind: 'enum_hand', label: 'Bowling hand', shortLabel: 'Hand', group: 'identity' },
+  { key: 'play_style', kind: 'enum_play_style', label: 'One or two handed', shortLabel: 'Style', group: 'identity' },
   { key: 'thumb_mode', kind: 'enum_thumb_mode', label: 'Thumb mode', shortLabel: 'Thumb mode', group: 'identity' },
   { key: 'fit_label', kind: 'text_short', label: 'Fit label (optional)', shortLabel: 'Label', group: 'identity' },
 
@@ -117,6 +128,13 @@ export const FIELDS: FieldDef[] = [
   { key: 'thumb_od', kind: 'length', label: 'Thumb slug size', shortLabel: 'Slug size', group: 'thumb', unit: 'in', thumbDependent: true },
   { key: 'thumb_insert_type', kind: 'enum_thumb_insert', label: 'Thumb insert type', shortLabel: 'Insert type', group: 'thumb', thumbDependent: true },
 
+  { key: 'rev_rate', kind: 'stat', label: 'Rev rate', shortLabel: 'Rev Rate', group: 'motion', unit: 'rpm' },
+  { key: 'axis_rotation', kind: 'stat', label: 'Axis rotation', shortLabel: 'Axis Rotation', group: 'motion', unit: '°' },
+  { key: 'axis_tilt', kind: 'stat', label: 'Axis tilt', shortLabel: 'Axis Tilt', group: 'motion', unit: '°' },
+  { key: 'speed', kind: 'stat', label: 'Speed', shortLabel: 'Speed', group: 'motion', unit: 'mph' },
+  { key: 'pap', kind: 'text_short', label: 'P.A.P', shortLabel: 'P.A.P', group: 'motion' },
+  { key: 'written_by', kind: 'text_short', label: 'Specs written by', shortLabel: 'Written By', group: 'motion' },
+
   { key: 'finger_insert_details', kind: 'text_long', label: 'Finger insert details', shortLabel: 'Finger inserts', group: 'details' },
   { key: 'thumb_system_details', kind: 'text_long', label: 'Thumb system details', shortLabel: 'Thumb system', group: 'details' },
   { key: 'fitting_notes', kind: 'text_long', label: 'Fitting notes', shortLabel: 'Notes', group: 'details' },
@@ -131,6 +149,7 @@ export const GROUP_LABELS: Record<FieldGroup, string> = {
   ring: 'Ring finger',
   spans: 'Spans',
   thumb: 'Thumb',
+  motion: 'Ball motion',
   details: 'Inserts, thumb system and notes',
 };
 
@@ -139,6 +158,16 @@ export type ForwardDir = 'forward' | 'reverse' | 'none';
 export type Hand = 'right' | 'left';
 export type ThumbMode = 'thumb_in' | 'no_thumb';
 export type SpanType = 'cut_to_cut' | 'full_span' | 'cut_to_outer';
+export type PlayStyle = 'one_handed' | 'two_handed';
+export const PLAY_STYLE_LABELS: Record<PlayStyle, string> = { one_handed: 'One Handed', two_handed: 'Two Handed' };
+
+/** Allowed range for each plain number at the bottom of the sheet. */
+export const STAT_RANGES: Partial<Record<FieldKey, [number, number]>> = {
+  rev_rate: [0, 1000],
+  axis_rotation: [0, 90],
+  axis_tilt: [0, 90],
+  speed: [0, 40],
+};
 
 export const SPAN_FIELDS = [
   'middle_cut_to_cut',
@@ -233,7 +262,7 @@ export interface DraftValue {
 export type Draft = Record<FieldKey, DraftValue>;
 
 export function isNumericKind(kind: FieldKind): boolean {
-  return kind === 'length' || kind === 'angle' || kind === 'pitch_lateral' || kind === 'pitch_fr';
+  return kind === 'length' || kind === 'angle' || kind === 'pitch_lateral' || kind === 'pitch_fr' || kind === 'stat';
 }
 
 export function isPitchKind(kind: FieldKind): boolean {
@@ -332,6 +361,7 @@ export function validateDraft(draft: Draft): DraftErrors {
       errors[f.key] = `Choose ${THUMB_INSERT_TYPES.join(', ')}`;
     if (f.kind === 'enum_grips' && trimmed && !(trimmed in GRIPS_LABELS)) errors[f.key] = 'Choose grips or no grips';
     if (f.kind === 'enum_grip_type' && trimmed && !(trimmed in GRIP_TYPE_LABELS)) errors[f.key] = 'Choose STD or Vaccu';
+    if (f.kind === 'enum_play_style' && trimmed && !(trimmed in PLAY_STYLE_LABELS)) errors[f.key] = 'Choose one or two handed';
     if (f.kind === 'text_short' && trimmed.length > 120) errors[f.key] = 'Keep this under 120 characters';
     if (f.kind === 'text_long' && trimmed.length > 4000) errors[f.key] = 'Keep this under 4000 characters';
     if (!isNumericKind(f.kind)) continue;
@@ -349,7 +379,12 @@ export function validateDraft(draft: Draft): DraftErrors {
       continue;
     }
     const options = pickerOptions(f.key, draft);
-    const rangeError = isPitchKind(f.kind)
+    const statRange = STAT_RANGES[f.key];
+    const rangeError = statRange
+      ? parsed.value.n > statRange[1] * parsed.value.d
+        ? `Enter ${statRange[0]} to ${statRange[1]}`
+        : null
+      : isPitchKind(f.kind)
       ? pitchRangeError(parsed.value)
       : (SPAN_FIELDS as readonly FieldKey[]).includes(f.key)
         ? spanRangeError(parsed.value)
@@ -461,13 +496,14 @@ export function formatValue(key: FieldKey, value: Snapshot[FieldKey], opts: { un
     if (f.kind === 'enum_span_type') return SPAN_TYPE_LABELS[value as SpanType] ?? value;
     if (f.kind === 'enum_grips') return GRIPS_LABELS[value as Grips] ?? value;
     if (f.kind === 'enum_grip_type') return GRIP_TYPE_LABELS[value as GripType] ?? value;
+    if (f.kind === 'enum_play_style') return PLAY_STYLE_LABELS[value as PlayStyle] ?? value;
     return value;
   }
   if (key === 'middle_grip_size' || key === 'ring_grip_size') {
     const num = gripNumber(value.entered);
     if (num != null) return `${value.entered}${opts.unit ? '"' : ''} (${num})`;
   }
-  const unit = opts.unit && f.unit ? (f.unit === '°' ? '°' : '"') : '';
+  const unit = opts.unit && f.unit ? (f.unit === '°' ? '°' : f.unit === 'in' ? '"' : ` ${f.unit}`) : '';
   const base = `${value.entered}${unit}`;
   if ('dir' in value) return `${base} ${directionLabel(value.dir)}`;
   return base;
@@ -522,6 +558,7 @@ export function parseDisplayDraft(draft: Draft, key: FieldKey): { text: string; 
   if (f.kind === 'enum_span_type') return { text: SPAN_TYPE_LABELS[text as SpanType] ?? text };
   if (f.kind === 'enum_grips') return { text: GRIPS_LABELS[text as Grips] ?? text };
   if (f.kind === 'enum_grip_type') return { text: GRIP_TYPE_LABELS[text as GripType] ?? text };
+  if (f.kind === 'enum_play_style') return { text: PLAY_STYLE_LABELS[text as PlayStyle] ?? text };
   if ((key === 'middle_grip_size' || key === 'ring_grip_size') && gripNumber(text) != null) return { text: `${text} (${gripNumber(text)})` };
   if (isPitchKind(f.kind)) return { text, dir: draft[key].dir || undefined };
   return { text };

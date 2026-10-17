@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom';
 import { useMembership } from '../lib/auth';
 import { toAppError, type AppError } from '../lib/errors';
-import { formatDateTime } from '../lib/format';
+import { formatDate, formatDateTime } from '../lib/format';
 import { Dialog, ErrorBanner, Notice, Spinner } from '../components/ui';
 import {
   FIELDS,
@@ -22,7 +22,9 @@ import {
 } from '../measurements/schema';
 import { SpecSheet, displayFromDraft } from '../template/SpecSheet';
 import { getCustomer, type Customer } from '../customers/api';
-import { getCurrentFit, parseConflict, saveFit, type ConflictInfo, type CurrentFit } from './api';
+import { BowlerCard } from '../customers/BowlerCard';
+import { EditCustomerDialog } from '../customers/CustomerPage';
+import { getCurrentFit, listSpecAuthors, parseConflict, saveFit, type ConflictInfo, type CurrentFit } from './api';
 import { ChangeTable } from './HistoryPage';
 
 interface StoredDraft {
@@ -63,6 +65,14 @@ export function EditFitPage() {
   const [saveError, setSaveError] = useState<AppError | null>(null);
   const [conflict, setConflict] = useState<{ info: ConflictInfo | null; latest: CurrentFit | null } | null>(null);
   const [activeField, setActiveField] = useState<FieldKey | null>(null);
+  const [editingBowler, setEditingBowler] = useState(false);
+  const [authors, setAuthors] = useState<string[]>([]);
+
+  useEffect(() => {
+    listSpecAuthors()
+      .then(setAuthors)
+      .catch(() => setAuthors([]));
+  }, []);
   const leaving = useRef(false);
   const loadedFor = useRef<string | null>(null);
 
@@ -207,9 +217,27 @@ export function EditFitPage() {
       <p className="breadcrumb no-print">
         <Link to={`/customers/${customerId}`}>← {customer.name}</Link>
       </p>
-      <h1>
-        {base.revision ? 'Edit measurements' : 'Create digital specs'} <span className="muted">· {customer.name}</span>
-      </h1>
+      <BowlerCard
+        customer={customer}
+        date={formatDate(new Date().toISOString())}
+        actions={
+          <button type="button" className="btn btn--small no-print" onClick={() => setEditingBowler(true)}>
+            Edit bowler details
+          </button>
+        }
+      >
+        {FIELDS.filter((f) => f.group === 'identity').map((f) => (
+          <FieldControl
+            key={f.key}
+            def={f}
+            value={draft[f.key]}
+            error={visibleErrors[f.key]}
+            onChange={(patch) => setField(f.key, patch)}
+            onFocus={() => setActiveField(f.key)}
+          />
+        ))}
+      </BowlerCard>
+      <h2 className="edit-heading">{base.revision ? 'Edit measurements' : 'Create digital specs'}</h2>
       {base.revision && (
         <p className="muted">
           Editing from revision #{base.revision.revision_number}, saved {formatDateTime(base.revision.created_at)} by{' '}
@@ -238,14 +266,11 @@ export function EditFitPage() {
         <div className="editor__sheet">
           <SpecSheet
             display={displayFromDraft(draft, visibleErrors)}
-            editor={{ draft, setField, onFocusField: setActiveField }}
+            editor={{ draft, setField, onFocusField: setActiveField, authors }}
             activeField={activeField}
             caption="Spec sheet. Tap a box to type or scroll its value."
           />
-          <p className="muted small">
-            Tap a box to scroll or type its value. Tap Grips or No Grips above the bridge, and F, C or CTO to switch which span you're entering; each span type is saved.
-            {noThumb && ' Thumb and span boxes show N/A in no-thumb mode; their saved values are kept.'}
-          </p>
+          {noThumb && <p className="muted small">Thumb and span boxes show N/A in no-thumb mode; their saved values are kept.</p>}
           {Object.keys(visibleErrors).length > 0 && (
             <ul className="sheet-errors" role="alert">
               {FIELDS.filter((f) => visibleErrors[f.key]).map((f) => (
@@ -261,20 +286,6 @@ export function EditFitPage() {
         </div>
 
         <div className="editor__form">
-          <fieldset className="fieldset">
-            <legend>{GROUP_LABELS.identity}</legend>
-            {FIELDS.filter((f) => f.group === 'identity').map((f) => (
-              <FieldControl
-                key={f.key}
-                def={f}
-                value={draft[f.key]}
-                error={visibleErrors[f.key]}
-                onChange={(patch) => setField(f.key, patch)}
-                onFocus={() => setActiveField(f.key)}
-              />
-            ))}
-          </fieldset>
-
           <fieldset className="fieldset">
             <legend>{GROUP_LABELS.details}</legend>
             {FIELDS.filter((f) => f.group === 'details').map((f) => (
@@ -432,6 +443,16 @@ export function EditFitPage() {
           </p>
         </Dialog>
       )}
+      {editingBowler && (
+        <EditCustomerDialog
+          customer={customer}
+          onClose={() => setEditingBowler(false)}
+          onSaved={(next) => {
+            setCustomer(next);
+            setEditingBowler(false);
+          }}
+        />
+      )}
     </main>
   );
 }
@@ -461,9 +482,21 @@ function FieldControl({
   const errId = `${id}-error`;
   const describedBy = error ? errId : undefined;
 
-  if (def.kind === 'enum_hand' || def.kind === 'enum_thumb_mode' || def.kind === 'enum_span_type' || def.kind === 'enum_thumb_insert') {
+  if (
+    def.kind === 'enum_hand' ||
+    def.kind === 'enum_play_style' ||
+    def.kind === 'enum_thumb_mode' ||
+    def.kind === 'enum_span_type' ||
+    def.kind === 'enum_thumb_insert'
+  ) {
     const options =
-      def.kind === 'enum_hand'
+      def.kind === 'enum_play_style'
+        ? [
+            ['one_handed', 'One Handed'],
+            ['two_handed', 'Two Handed'],
+            ['', 'Not recorded'],
+          ]
+        : def.kind === 'enum_hand'
         ? [
             ['right', 'Right-handed'],
             ['left', 'Left-handed'],

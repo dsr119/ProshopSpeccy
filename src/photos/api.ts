@@ -12,9 +12,16 @@ export interface SpecPhoto {
   size_bytes: number;
   rotation: 0 | 90 | 180 | 270;
   caption: string | null;
+  kind: PhotoKind;
+  confirmed: boolean;
+  confirmed_at: string | null;
+  confirmed_by: string | null;
   author_name: string | null;
   created_at: string;
 }
+
+export type PhotoKind = 'spec_sheet' | 'ball';
+export const PHOTO_KIND_LABELS: Record<PhotoKind, string> = { spec_sheet: 'Spec sheet', ball: 'Ball' };
 
 export const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
 export const ACCEPTED_TYPES: Record<string, string> = {
@@ -60,6 +67,7 @@ export interface UploadInput {
   file: File;
   rotation: number;
   caption: string;
+  kind: PhotoKind;
   revisionId: string | null;
 }
 
@@ -90,6 +98,7 @@ export async function uploadPhoto(input: UploadInput): Promise<SpecPhoto> {
       size_bytes: input.file.size,
       rotation: input.rotation,
       caption: input.caption.trim() || null,
+      kind: input.kind,
     })
     .select('*')
     .single();
@@ -102,6 +111,6 @@ export async function uploadPhoto(input: UploadInput): Promise<SpecPhoto> {
   return meta.data as SpecPhoto;
 }
 
-export async function updatePhoto(id: string, changes: { caption?: string | null; rotation?: number }): Promise<SpecPhoto> {
+export async function updatePhoto(id: string, changes: { caption?: string | null; rotation?: number; confirmed?: boolean }): Promise<SpecPhoto> {
   return unwrap(await supabase.from('spec_photos').update(changes).eq('id', id).select('*').single()) as SpecPhoto;
 }
