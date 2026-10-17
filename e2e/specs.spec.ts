@@ -46,9 +46,14 @@ test('mixed fractions, pitch directions, blank and zero save and reload in the r
   await expect(slot(page, 'middle_cut_to_cut')).toHaveText('4 3/8');
   await expect(slot(page, 'ring_cut_to_cut')).toHaveText('4-5/16');
   await expect(slot(page, 'middle_actual_cut')).toHaveText('4.5');
-  await expect(slot(page, 'middle_lateral_pitch')).toHaveText(/Lat\s*1\/8 →Right/);
-  await expect(slot(page, 'middle_fr_pitch')).toHaveText(/F\/R\s*1\/4 ↑Forward/);
-  await expect(slot(page, 'thumb_fr_pitch')).toHaveText(/F\/R\s*3\/8 ↓Reverse/);
+  // Each pitch sits in the box on its arrow; the other box on that axis stays blank.
+  await expect(slot(page, 'middle_lateral_pitch')).toHaveText('1/8');
+  await expect(slot(page, 'middle_lateral_pitch')).toHaveAttribute('data-dir', 'right');
+  await expect(page.locator('.sheet [data-field="middle_lateral_pitch"][data-dir="left"]')).toHaveText('');
+  await expect(slot(page, 'middle_fr_pitch')).toHaveText('1/4');
+  await expect(slot(page, 'middle_fr_pitch')).toHaveAttribute('data-dir', 'forward');
+  await expect(slot(page, 'thumb_fr_pitch')).toHaveText('3/8');
+  await expect(slot(page, 'thumb_fr_pitch')).toHaveAttribute('data-dir', 'reverse');
   await expect(slot(page, 'thumb_oval_angle')).toHaveText('15°');
   // Blank stays blank (not zero).
   await expect(slot(page, 'ring_actual_cut')).toHaveText('–');

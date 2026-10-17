@@ -49,5 +49,6 @@ export async function apiClient(email?: string) {
 
 /** Text shown in a sheet slot. */
 export function slot(page: Page, field: string) {
-  return page.locator(`.sheet [data-field="${field}"]`).first();
+  // Pitches have a box per direction; the one holding the value is the one that isn't blank.
+  return page.locator(`.sheet [data-field="${field}"]:not(.slot--blank)`).first();
 }

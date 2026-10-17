@@ -545,13 +545,6 @@ a:focus-visible {
   background: rgba(255, 255, 255, 0.92);
   border-radius: 0.8cqw;
 }
-.slot__prefix {
-  white-space: nowrap;
-  font-weight: 600;
-  color: #6a7385;
-  font-size: 0.8em;
-  margin-right: 0.25em;
-}
 .slot--empty {
   color: #a2a9b6;
   font-weight: 400;

@@ -26,8 +26,8 @@ export type SlotStyle = 'box' | 'hole' | 'pitch' | 'angle';
 export interface OverlaySlot {
   field: FieldKey;
   style: SlotStyle;
-  /** Short prefix shown inside pitch slots so the axis is never implied by position alone. */
-  prefix?: string;
+  /** Pitch boxes sit on the arrow they stand for and only show a value pitched that way. */
+  dir?: 'forward' | 'reverse' | 'left' | 'right';
   x: number;
   y: number;
   w: number;
@@ -43,8 +43,9 @@ export interface OverlayLabel {
 }
 
 // Bounding boxes measured from the template artwork.
-const LEFT = { ovalX: 127, holeCx: 175, crossX: 4, cutX: 137, actualX: 155 };
-const RIGHT = { ovalX: 327, holeCx: 375, crossX: 432, cutX: 316, actualX: 298 };
+// Lateral boxes sit in the gaps above the left and right arrows, clear of the finger hole.
+const LEFT = { ovalX: 127, holeCx: 175, crossX: 4, cutX: 137, actualX: 155, latLeft: [8, 54], latRight: [74, 50] };
+const RIGHT = { ovalX: 327, holeCx: 375, crossX: 432, cutX: 316, actualX: 298, latLeft: [424, 50], latRight: [486, 56] };
 const finger = (side: 'left' | 'right') => (FINGER_MAPPING[side === 'left' ? 'leftUpperHole' : 'rightUpperHole']);
 
 function fingerSlots(side: 'left' | 'right'): OverlaySlot[] {
@@ -53,8 +54,10 @@ function fingerSlots(side: 'left' | 'right'): OverlaySlot[] {
   return [
     { field: `${f}_oval`, style: 'box', x: g.ovalX, y: 32, w: 96, h: 31 },
     { field: `${f}_hole`, style: 'hole', x: g.holeCx - 42, y: 110, w: 84, h: 34 },
-    { field: `${f}_lateral_pitch`, style: 'pitch', prefix: 'Lat', x: g.crossX, y: 46, w: 114, h: 28 },
-    { field: `${f}_fr_pitch`, style: 'pitch', prefix: 'F/R', x: g.crossX, y: 176, w: 114, h: 28 },
+    { field: `${f}_fr_pitch`, style: 'pitch', dir: 'forward', x: g.crossX, y: 46, w: 114, h: 28 },
+    { field: `${f}_fr_pitch`, style: 'pitch', dir: 'reverse', x: g.crossX, y: 176, w: 114, h: 28 },
+    { field: `${f}_lateral_pitch`, style: 'pitch', dir: 'left', x: g.latLeft[0], y: 93, w: g.latLeft[1], h: 20 },
+    { field: `${f}_lateral_pitch`, style: 'pitch', dir: 'right', x: g.latRight[0], y: 93, w: g.latRight[1], h: 20 },
     { field: `${f}_cut_to_cut`, style: 'box', x: g.cutX, y: 222, w: 96, h: 31 },
     { field: `${f}_actual_cut`, style: 'box', x: g.actualX, y: 292, w: 96, h: 31 },
   ] as OverlaySlot[];
@@ -65,8 +68,10 @@ export const OVERLAY_SLOTS: OverlaySlot[] = [
   ...fingerSlots('right'),
   { field: 'thumb_hole', style: 'hole', x: 233, y: 410, w: 84, h: 34 },
   { field: 'thumb_oval', style: 'box', x: 227, y: 487, w: 96, h: 31 },
-  { field: 'thumb_lateral_pitch', style: 'pitch', prefix: 'Lat', x: 102, y: 346, w: 116, h: 28 },
-  { field: 'thumb_fr_pitch', style: 'pitch', prefix: 'F/R', x: 102, y: 474, w: 116, h: 28 },
+  { field: 'thumb_fr_pitch', style: 'pitch', dir: 'forward', x: 102, y: 346, w: 116, h: 28 },
+  { field: 'thumb_fr_pitch', style: 'pitch', dir: 'reverse', x: 102, y: 474, w: 116, h: 28 },
+  { field: 'thumb_lateral_pitch', style: 'pitch', dir: 'left', x: 110, y: 397, w: 52, h: 22 },
+  { field: 'thumb_lateral_pitch', style: 'pitch', dir: 'right', x: 176, y: 397, w: 50, h: 22 },
   { field: 'thumb_oval_angle', style: 'angle', x: 335, y: 488, w: 75, h: 28 },
 ];
 

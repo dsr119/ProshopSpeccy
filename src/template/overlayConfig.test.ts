@@ -11,9 +11,18 @@ function overlaps(a: { x: number; y: number; w: number; h: number }, b: typeof a
 }
 
 describe('overlay configuration', () => {
-  it('places every sheet measurement exactly once', () => {
-    const keys = OVERLAY_SLOTS.map((s) => s.field).sort();
+  it('places every sheet measurement, pitches once per direction', () => {
+    const keys = [...new Set(OVERLAY_SLOTS.map((s) => s.field))].sort();
     expect(keys).toEqual([...sheetFields].sort());
+    for (const s of OVERLAY_SLOTS.filter((x) => !x.dir)) expect(OVERLAY_SLOTS.filter((x) => x.field === s.field)).toHaveLength(1);
+    for (const f of sheetFields.filter((k) => k.endsWith('_pitch'))) {
+      const dirs = OVERLAY_SLOTS.filter((x) => x.field === f).map((x) => x.dir).sort();
+      expect(dirs).toEqual(f.endsWith('_fr_pitch') ? ['forward', 'reverse'] : ['left', 'right']);
+    }
+  });
+
+  it('fits a 1/32 pitch value on one readable line in every pitch box', () => {
+    for (const s of OVERLAY_SLOTS.filter((x) => x.dir)) expect(fitFont('1 31/32', s.w, s.h).size).toBeGreaterThanOrEqual(10);
   });
 
   it('keeps every slot inside the 550 x 550 template', () => {
@@ -26,7 +35,7 @@ describe('overlay configuration', () => {
   });
 
   it('never overlaps two slots or a slot and a label', () => {
-    const all = [...OVERLAY_SLOTS.map((s) => ({ ...s, id: s.field })), ...OVERLAY_LABELS.map((l) => ({ ...l, id: l.text }))];
+    const all = [...OVERLAY_SLOTS.map((s) => ({ ...s, id: `${s.field}${s.dir ? ':' + s.dir : ''}` })), ...OVERLAY_LABELS.map((l) => ({ ...l, id: l.text }))];
     for (let i = 0; i < all.length; i++) {
       for (let j = i + 1; j < all.length; j++) {
         expect(overlaps(all[i], all[j]), `${all[i].id} overlaps ${all[j].id}`).toBe(false);

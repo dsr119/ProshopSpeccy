@@ -19,7 +19,9 @@ export type SlotDisplay =
   | { state: 'value'; text: string; dir?: string }
   | { state: 'empty' }
   | { state: 'na' }
-  | { state: 'invalid'; text: string };
+  | { state: 'invalid'; text: string; dir?: string }
+  /** A pitch box for the other direction of a pitch that is recorded. */
+  | { state: 'blank' };
 
 export type DisplayFn = (key: FieldKey) => SlotDisplay;
 
@@ -39,7 +41,7 @@ export function displayFromDraft(draft: Draft, errors: DraftErrors): DisplayFn {
     if (FIELD_BY_KEY[key].thumbDependent && thumbMode === 'no_thumb') return { state: 'na' };
     const parsed = parseDisplayDraft(draft, key);
     if (parsed == null) return { state: 'empty' };
-    if (errors[key]) return { state: 'invalid', text: parsed.text || '?' };
+    if (errors[key]) return { state: 'invalid', text: parsed.text || '?', dir: parsed.dir };
     return { state: 'value', ...parsed };
   };
 }
@@ -56,12 +58,23 @@ export function fitFont(text: string, w: number, h: number, max = 15): { size: n
   return { size: Math.max(Math.min(twoLines, max), 5), lines: 2 };
 }
 
+const FIRST_OF_AXIS = new Set(['forward', 'left']);
+
+/** A pitch value shows only in the box for its direction; a neutral zero shows forward/left. */
+function forSlot(slot: OverlaySlot, d: SlotDisplay): SlotDisplay {
+  if (!slot.dir || (d.state !== 'value' && d.state !== 'invalid')) return d;
+  const dir = d.dir && d.dir !== 'none' ? d.dir : null;
+  const mine = dir ? dir === slot.dir : FIRST_OF_AXIS.has(slot.dir);
+  return mine ? d : { state: 'blank' };
+}
+
 function slotText(slot: OverlaySlot, d: SlotDisplay): string {
   if (d.state === 'na') return 'N/A';
-  if (d.state === 'empty') return '';
+  if (d.state === 'empty' || d.state === 'blank') return '';
   const unit = slot.style === 'angle' ? '°' : '';
-  const dir = d.state === 'value' && d.dir ? ` ${ARROWS[d.dir] ?? ''}${directionLabel(d.dir)}` : '';
-  return `${slot.prefix ? slot.prefix + ' ' : ''}${d.text}${unit}${dir}`;
+  // Pitch boxes say their direction by where they sit on the arrow.
+  const dir = !slot.dir && d.state === 'value' && d.dir ? ` ${ARROWS[d.dir] ?? ''}${directionLabel(d.dir)}` : '';
+  return `${d.text}${unit}${dir}`;
 }
 
 interface SpecSheetProps {
@@ -94,7 +107,7 @@ export function SpecSheet({ display, onSelectField, activeField, caption }: Spec
         ))}
         <SpanHeading display={display} />
         {OVERLAY_SLOTS.map((slot) => {
-          const d = display(slot.field);
+          const d = forSlot(slot, display(slot.field));
           const text = slotText(slot, d);
           const { size, lines } = fitFont(text, slot.w, slot.h, slot.style === 'hole' ? 17 : 15);
           const cls = [
@@ -111,14 +124,11 @@ export function SpecSheet({ display, onSelectField, activeField, caption }: Spec
             height: pct(slot.h),
             fontSize: `${(size / TEMPLATE_SIZE) * 100}cqw`,
           };
-          const label = FIELD_BY_KEY[slot.field].label;
+          const label = FIELD_BY_KEY[slot.field].label + (slot.dir ? ` (${directionLabel(slot.dir).toLowerCase()})` : '');
+          const key = slot.dir ? `${slot.field}:${slot.dir}` : slot.field;
           const content =
             d.state === 'empty' ? (
               <span className="slot__empty">–</span>
-            ) : slot.prefix && d.state !== 'na' ? (
-              <>
-                <span className="slot__prefix">{slot.prefix}</span> {text.slice(slot.prefix.length + 1)}
-              </>
             ) : (
               text
             );
@@ -126,10 +136,11 @@ export function SpecSheet({ display, onSelectField, activeField, caption }: Spec
             return (
               <button
                 type="button"
-                key={slot.field}
+                key={key}
                 className={cls}
                 style={style}
                 data-field={slot.field}
+                data-dir={slot.dir}
                 title={`Edit ${label}`}
                 aria-label={`Edit ${label}`}
                 onClick={() => onSelectField?.(slot.field)}
@@ -140,7 +151,7 @@ export function SpecSheet({ display, onSelectField, activeField, caption }: Spec
             );
           }
           return (
-            <span key={slot.field} className={cls} style={style} data-field={slot.field} title={label} aria-hidden="true">
+            <span key={key} className={cls} style={style} data-field={slot.field} data-dir={slot.dir} title={label} aria-hidden="true">
               {content}
             </span>
           );
@@ -149,8 +160,8 @@ export function SpecSheet({ display, onSelectField, activeField, caption }: Spec
       <figcaption className="sheet-legend">
         <strong>Orientation{FINGER_MAPPING.provisional ? ' (provisional)' : ''}:</strong> {FINGER_MAPPING.viewDescription}. Left
         upper hole = {FINGER_MAPPING.leftUpperHole}, right upper hole = {FINGER_MAPPING.rightUpperHole}. The layout is the same for
-        left- and right-handed bowlers. Units: inches; oval angle in degrees. Pitch shows Lat (lateral: left/right) and F/R
-        (forward/reverse). “–” means not recorded; N/A means not applicable in no-thumb mode.
+        left- and right-handed bowlers. Units: inches; oval angle in degrees. Each pitch shows in the box on its arrow: forward
+        above, reverse below, left and right beside the cross. “–” means not recorded; N/A means not applicable in no-thumb mode.
       </figcaption>
     </figure>
   );
