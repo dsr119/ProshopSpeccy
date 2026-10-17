@@ -51,3 +51,8 @@ export async function apiClient(email?: string) {
 export function slot(page: Page, field: string) {
   return page.locator(`.sheet [data-field="${field}"]`).first();
 }
+
+/** A pitch box for one direction on the sheet. */
+export function dirSlot(page: Page, field: string, dir: string) {
+  return page.locator(`.sheet [data-field="${field}"][data-dir="${dir}"]`);
+}

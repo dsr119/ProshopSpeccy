@@ -27,7 +27,7 @@ async function seedLongValues(page: Page) {
   await page.goto(`/customers/${id}/edit`);
   await page.getByLabel('Right-handed').check();
   await page.getByLabel('Thumb-in').check();
-  await page.getByLabel('Cut to Switch Grip Cut', { exact: true }).check();
+  await page.getByLabel('Cut to Outer', { exact: true }).check();
   for (const [field, v] of Object.entries(LONG)) {
     const [text, dir] = Array.isArray(v) ? v : [v, undefined];
     const input = page.locator(`#field-${field}`);
@@ -46,7 +46,7 @@ async function checkSheet(page: Page) {
   const problems = await page.evaluate(() => {
     const out: string[] = [];
     const sheet = document.querySelector('.sheet')!.getBoundingClientRect();
-    const slots = [...document.querySelectorAll<HTMLElement>('.sheet .slot, .sheet .sheet__label')];
+    const slots = [...document.querySelectorAll<HTMLElement>('.sheet .slot')];
     const rects = slots.map((s) => ({ el: s, r: s.getBoundingClientRect() }));
     for (const { el, r } of rects) {
       if (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1) out.push(`clipped: ${el.dataset.field ?? el.textContent}`);

@@ -10,6 +10,7 @@ export type FieldKind =
   | 'enum_hand'
   | 'enum_thumb_mode'
   | 'enum_span_type'
+  | 'enum_thumb_insert'
   | 'text_short'
   | 'text_long'
   | 'length'
@@ -38,10 +39,13 @@ export const FIELD_KEYS = [
   'middle_oval',
   'middle_lateral_pitch',
   'middle_fr_pitch',
+  'middle_inserts',
   'ring_hole',
   'ring_oval',
   'ring_lateral_pitch',
   'ring_fr_pitch',
+  'ring_inserts',
+  'bridge',
   'span_type',
   'middle_cut_to_cut',
   'ring_cut_to_cut',
@@ -52,6 +56,8 @@ export const FIELD_KEYS = [
   'thumb_lateral_pitch',
   'thumb_fr_pitch',
   'thumb_oval_angle',
+  'thumb_od',
+  'thumb_insert_type',
   'finger_insert_details',
   'thumb_system_details',
   'fitting_notes',
@@ -68,12 +74,15 @@ export const FIELDS: FieldDef[] = [
   { key: 'middle_oval', kind: 'text_short', label: 'Middle finger oval', shortLabel: 'Oval', group: 'middle' },
   { key: 'middle_lateral_pitch', kind: 'pitch_lateral', label: 'Middle finger lateral pitch', shortLabel: 'Lateral pitch', group: 'middle', unit: 'in' },
   { key: 'middle_fr_pitch', kind: 'pitch_fr', label: 'Middle finger forward/reverse pitch', shortLabel: 'Fwd/Rev pitch', group: 'middle', unit: 'in' },
+  { key: 'middle_inserts', kind: 'text_short', label: 'Middle finger inserts', shortLabel: 'Inserts', group: 'middle' },
 
   { key: 'ring_hole', kind: 'length', label: 'Ring finger hole size', shortLabel: 'Hole', group: 'ring', unit: 'in' },
   { key: 'ring_oval', kind: 'text_short', label: 'Ring finger oval', shortLabel: 'Oval', group: 'ring' },
   { key: 'ring_lateral_pitch', kind: 'pitch_lateral', label: 'Ring finger lateral pitch', shortLabel: 'Lateral pitch', group: 'ring', unit: 'in' },
   { key: 'ring_fr_pitch', kind: 'pitch_fr', label: 'Ring finger forward/reverse pitch', shortLabel: 'Fwd/Rev pitch', group: 'ring', unit: 'in' },
+  { key: 'ring_inserts', kind: 'text_short', label: 'Ring finger inserts', shortLabel: 'Inserts', group: 'ring' },
 
+  { key: 'bridge', kind: 'length', label: 'Bridge', shortLabel: 'Bridge', group: 'spans', unit: 'in' },
   // What the upper span boxes measure. The keys below keep their original names (stable
   // database keys); older fits without a span type were cut-to-cut.
   { key: 'span_type', kind: 'enum_span_type', label: 'Span measured', shortLabel: 'Span', group: 'spans', thumbDependent: true },
@@ -87,6 +96,8 @@ export const FIELDS: FieldDef[] = [
   { key: 'thumb_lateral_pitch', kind: 'pitch_lateral', label: 'Thumb lateral pitch', shortLabel: 'Lateral pitch', group: 'thumb', unit: 'in', thumbDependent: true },
   { key: 'thumb_fr_pitch', kind: 'pitch_fr', label: 'Thumb forward/reverse pitch', shortLabel: 'Fwd/Rev pitch', group: 'thumb', unit: 'in', thumbDependent: true },
   { key: 'thumb_oval_angle', kind: 'angle', label: 'Thumb oval angle', shortLabel: 'Oval angle', group: 'thumb', unit: '°', thumbDependent: true },
+  { key: 'thumb_od', kind: 'length', label: 'Thumb O.D.', shortLabel: 'O.D.', group: 'thumb', unit: 'in', thumbDependent: true },
+  { key: 'thumb_insert_type', kind: 'enum_thumb_insert', label: 'Thumb insert type', shortLabel: 'Insert type', group: 'thumb', thumbDependent: true },
 
   { key: 'finger_insert_details', kind: 'text_long', label: 'Finger insert details', shortLabel: 'Finger inserts', group: 'details' },
   { key: 'thumb_system_details', kind: 'text_long', label: 'Thumb system details', shortLabel: 'Thumb system', group: 'details' },
@@ -108,7 +119,7 @@ export type LateralDir = 'left' | 'right' | 'none';
 export type ForwardDir = 'forward' | 'reverse' | 'none';
 export type Hand = 'right' | 'left';
 export type ThumbMode = 'thumb_in' | 'no_thumb';
-export type SpanType = 'cut_to_cut' | 'full_span' | 'cut_to_switch';
+export type SpanType = 'cut_to_cut' | 'full_span' | 'cut_to_outer';
 
 export const SPAN_FIELDS = ['middle_cut_to_cut', 'ring_cut_to_cut'] as const;
 
@@ -187,6 +198,8 @@ export function validateDraft(draft: Draft): DraftErrors {
   for (const f of FIELDS) {
     const { text, dir } = draft[f.key];
     const trimmed = text.trim();
+    if (f.kind === 'enum_thumb_insert' && trimmed && !(THUMB_INSERT_TYPES as readonly string[]).includes(trimmed))
+      errors[f.key] = `Choose ${THUMB_INSERT_TYPES.join(', ')}`;
     if (f.kind === 'text_short' && trimmed.length > 120) errors[f.key] = 'Keep this under 120 characters';
     if (f.kind === 'text_long' && trimmed.length > 4000) errors[f.key] = 'Keep this under 4000 characters';
     if (!isNumericKind(f.kind)) continue;
@@ -214,7 +227,7 @@ export function validateDraft(draft: Draft): DraftErrors {
   }
   if (!draft.span_type.text) {
     for (const key of SPAN_FIELDS) {
-      if (draft[key].text.trim() !== '' && !errors[key]) errors[key] = 'Choose Cut to Cut, Full Span or Cut to Switch Grip Cut first';
+      if (draft[key].text.trim() !== '' && !errors[key]) errors[key] = 'Choose Full Span, Cut to Cut or Cut to Outer first';
     }
   }
   return errors;
@@ -273,16 +286,21 @@ export function directionLabel(dir: string): string {
 export const HAND_LABELS: Record<Hand, string> = { right: 'Right-handed', left: 'Left-handed' };
 export const THUMB_MODE_LABELS: Record<ThumbMode, string> = { thumb_in: 'Thumb-in', no_thumb: 'No-thumb' };
 export const SPAN_TYPE_LABELS: Record<SpanType, string> = {
-  cut_to_cut: 'Cut to Cut',
   full_span: 'Full Span',
-  cut_to_switch: 'Cut to Switch Grip Cut',
+  cut_to_cut: 'Cut to Cut',
+  cut_to_outer: 'Cut to Outer',
 };
+/** Letters on the sheet's span type picker, in picker order. */
+export const SPAN_TYPE_ORDER: SpanType[] = ['full_span', 'cut_to_cut', 'cut_to_outer'];
+export const SPAN_TYPE_LETTERS: Record<SpanType, string> = { full_span: 'F', cut_to_cut: 'C', cut_to_outer: 'CTO' };
 /** What each span type measures, for the editor. */
 export const SPAN_TYPE_HINTS: Record<SpanType, string> = {
-  cut_to_cut: 'cut of finger hole to cut of thumb hole',
   full_span: 'grip to thumb cut',
-  cut_to_switch: 'cut of finger hole to cut of the switch grip hole',
+  cut_to_cut: 'cut of finger hole to cut of thumb hole',
+  cut_to_outer: 'cut of finger hole to outer edge of thumb hole',
 };
+/** Thumb insert types offered in the editor, saved as shown. */
+export const THUMB_INSERT_TYPES = ['IT', 'JOPO', 'Turbo', 'Turbo NX'] as const;
 
 /** Plain-text value for display, history and print; null when not recorded. */
 export function formatValue(key: FieldKey, value: Snapshot[FieldKey], opts: { unit?: boolean } = {}): string | null {

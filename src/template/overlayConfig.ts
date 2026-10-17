@@ -1,18 +1,18 @@
-// Where each measurement appears on specSheet550wide.png. Coordinates are in
-// the image's intrinsic 550 x 550 pixel space and are converted to percentages
-// at render time, so the overlay scales with the image.
+// Layout of the spec sheet, drawn by SheetArtwork and filled by SpecSheet.
+// Everything is in a 540 x 640 drawing space and converted to percentages at
+// render time, so the sheet scales with its container. The layout follows the
+// shop's own sheet mockup (October 2026).
 //
-// PROVISIONAL MAPPING (owner decision still open): the template does not say
-// which upper hole is the middle finger or which way the sheet is viewed. We
-// assume the sheet is viewed from above the ball with the thumb hole toward the
-// bowler, the LEFT upper hole is the MIDDLE finger and the RIGHT upper hole is
-// the RING finger, for both hands. The layout is never mirrored automatically
-// for left-handed bowlers. To change the mapping, edit FINGER_MAPPING below.
+// PROVISIONAL MAPPING (owner decision still open): we assume the sheet is
+// viewed from above the ball with the thumb hole toward the bowler, the LEFT
+// upper hole is the MIDDLE finger and the RIGHT upper hole is the RING finger,
+// for both hands. The layout is never mirrored automatically for left-handed
+// bowlers. To change the mapping, edit FINGER_MAPPING below.
 
 import type { FieldKey } from '../measurements/schema';
 
-export const TEMPLATE_SRC = `${import.meta.env.BASE_URL}assets/specSheet550wide.png`;
-export const TEMPLATE_SIZE = 550;
+export const TEMPLATE_W = 540;
+export const TEMPLATE_H = 640;
 
 export const FINGER_MAPPING = {
   provisional: true,
@@ -21,64 +21,155 @@ export const FINGER_MAPPING = {
   viewDescription: 'Viewed from above the ball, thumb hole toward the bowler',
 } as const;
 
-export type SlotStyle = 'box' | 'hole' | 'pitch' | 'angle';
+/**
+ * box: a value in a drawn box. half: a value inside half of a hole circle.
+ * line: a value written above a dotted line. pitch: a pitch box (see dir).
+ */
+export type SlotStyle = 'box' | 'half' | 'line' | 'pitch';
 
-export interface OverlaySlot {
-  field: FieldKey;
-  style: SlotStyle;
-  /** Short prefix shown inside pitch slots so the axis is never implied by position alone. */
-  prefix?: string;
+export interface Rect {
   x: number;
   y: number;
   w: number;
   h: number;
 }
 
-export interface OverlayLabel {
+export interface OverlaySlot extends Rect {
+  field: FieldKey;
+  style: SlotStyle;
+  /** A pitch box that only shows a value pitched this way. */
+  dir?: 'forward' | 'reverse' | 'left' | 'right';
+  /** A lateral pitch box that shows left as minus and right as plus. */
+  signed?: boolean;
+  /** Draw a frame around the slot (boxes and pitch boxes). */
+  framed?: boolean;
+}
+
+export interface SheetLabel {
   text: string;
   x: number;
   y: number;
-  w: number;
-  h: number;
+  /** Text anchor; labels are centred on x unless set. */
+  anchor?: 'start' | 'middle' | 'end';
+  size?: number;
 }
 
-// Bounding boxes measured from the template artwork.
-const LEFT = { ovalX: 127, holeCx: 175, crossX: 4, cutX: 137, actualX: 155 };
-const RIGHT = { ovalX: 327, holeCx: 375, crossX: 432, cutX: 316, actualX: 298 };
-const finger = (side: 'left' | 'right') => (FINGER_MAPPING[side === 'left' ? 'leftUpperHole' : 'rightUpperHole']);
+export interface Circle {
+  cx: number;
+  cy: number;
+  r: number;
+  /** Small captions for the top and bottom halves. */
+  top: string;
+  bottom: string;
+  name: string;
+}
+
+export interface Arrow {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  /** Arrowheads at the start, the end, or both. */
+  heads: 'start' | 'end' | 'both';
+}
+
+export interface DottedLine {
+  x1: number;
+  x2: number;
+  y: number;
+}
+
+const finger = (side: 'left' | 'right') => FINGER_MAPPING[side === 'left' ? 'leftUpperHole' : 'rightUpperHole'];
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+const FINGERS = {
+  left: { colX: 28, cx: 169, edgeX: 29, outX: 12, latLabel: 'Lateral' },
+  right: { colX: 430, cx: 368, edgeX: 507, outX: 524, latLabel: 'Lateral' },
+} as const;
+const HOLE_Y = 115;
+const HOLE_R = 52;
+const THUMB = { cx: 268, cy: 483, r: 52 };
 
 function fingerSlots(side: 'left' | 'right'): OverlaySlot[] {
-  const g = side === 'left' ? LEFT : RIGHT;
+  const g = FINGERS[side];
   const f = finger(side);
+  const half = { x: g.cx - 40, w: 80, h: 26 };
   return [
-    { field: `${f}_oval`, style: 'box', x: g.ovalX, y: 32, w: 96, h: 31 },
-    { field: `${f}_hole`, style: 'hole', x: g.holeCx - 42, y: 110, w: 84, h: 34 },
-    { field: `${f}_lateral_pitch`, style: 'pitch', prefix: 'Lat', x: g.crossX, y: 46, w: 114, h: 28 },
-    { field: `${f}_fr_pitch`, style: 'pitch', prefix: 'F/R', x: g.crossX, y: 176, w: 114, h: 28 },
-    { field: `${f}_cut_to_cut`, style: 'box', x: g.cutX, y: 222, w: 96, h: 31 },
-    { field: `${f}_actual_cut`, style: 'box', x: g.actualX, y: 292, w: 96, h: 31 },
+    { field: `${f}_fr_pitch`, style: 'pitch', dir: 'reverse', framed: true, x: g.colX, y: 27, w: 78, h: 48 },
+    { field: `${f}_lateral_pitch`, style: 'pitch', signed: true, framed: true, x: g.colX, y: 91, w: 78, h: 48 },
+    { field: `${f}_fr_pitch`, style: 'pitch', dir: 'forward', framed: true, x: g.colX, y: 155, w: 78, h: 48 },
+    { field: `${f}_oval`, style: 'half', ...half, y: HOLE_Y - 32 },
+    { field: `${f}_hole`, style: 'half', ...half, y: HOLE_Y + 6 },
+    { field: `${f}_inserts`, style: 'line', x: g.cx - 52, y: 28, w: 104, h: 18 },
+    { field: `${f}_cut_to_cut`, style: 'box', framed: true, x: side === 'left' ? 119 : 289, y: 262, w: 132, h: 72 },
   ] as OverlaySlot[];
 }
 
 export const OVERLAY_SLOTS: OverlaySlot[] = [
   ...fingerSlots('left'),
   ...fingerSlots('right'),
-  { field: 'thumb_hole', style: 'hole', x: 233, y: 410, w: 84, h: 34 },
-  { field: 'thumb_oval', style: 'box', x: 227, y: 487, w: 96, h: 31 },
-  { field: 'thumb_lateral_pitch', style: 'pitch', prefix: 'Lat', x: 102, y: 346, w: 116, h: 28 },
-  { field: 'thumb_fr_pitch', style: 'pitch', prefix: 'F/R', x: 102, y: 474, w: 116, h: 28 },
-  { field: 'thumb_oval_angle', style: 'angle', x: 335, y: 488, w: 75, h: 28 },
+  { field: 'bridge', style: 'box', framed: true, x: 230, y: 93, w: 78, h: 44 },
+  { field: 'thumb_od', style: 'half', x: THUMB.cx - 40, y: THUMB.cy - 32, w: 80, h: 26 },
+  { field: 'thumb_hole', style: 'half', x: THUMB.cx - 40, y: THUMB.cy + 6, w: 80, h: 26 },
+  { field: 'thumb_fr_pitch', style: 'pitch', dir: 'forward', framed: true, x: 230, y: 368, w: 78, h: 48 },
+  { field: 'thumb_fr_pitch', style: 'pitch', dir: 'reverse', framed: true, x: 230, y: 550, w: 78, h: 48 },
+  { field: 'thumb_lateral_pitch', style: 'pitch', dir: 'left', framed: true, x: 124, y: 458, w: 78, h: 48 },
+  { field: 'thumb_lateral_pitch', style: 'pitch', dir: 'right', framed: true, x: 334, y: 458, w: 78, h: 48 },
+  { field: 'thumb_insert_type', style: 'line', x: 346, y: 404, w: 142, h: 18 },
 ];
 
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-
-export const OVERLAY_LABELS: OverlayLabel[] = [
-  { text: cap(finger('left')), x: LEFT.holeCx - 35, y: 86, w: 70, h: 18 },
-  { text: cap(finger('right')), x: RIGHT.holeCx - 35, y: 86, w: 70, h: 18 },
-  { text: 'Thumb', x: 240, y: 386, w: 70, h: 18 },
+export const SHEET_CIRCLES: Circle[] = [
+  { cx: FINGERS.left.cx, cy: HOLE_Y, r: HOLE_R, top: 'Oval', bottom: 'Hole Size', name: cap(finger('left')) },
+  { cx: FINGERS.right.cx, cy: HOLE_Y, r: HOLE_R, top: 'Oval', bottom: 'Hole Size', name: cap(finger('right')) },
+  { ...THUMB, top: 'O.D.', bottom: 'Hole Size', name: 'Thumb' },
 ];
 
-/** Covers the printed "Cut to Cut" heading so it can name the chosen span type instead. */
-export const SPAN_HEADING: Omit<OverlayLabel, 'text'> = { x: 200, y: 201, w: 150, h: 18 };
+export const SHEET_LABELS: SheetLabel[] = [
+  // Finger pitch columns: reverse above, forward below, lateral pointing outward.
+  ...(['left', 'right'] as const).flatMap((side) => {
+    const g = FINGERS[side];
+    const mid = g.colX + 39;
+    return [
+      { text: 'Reverse', x: mid, y: 20 },
+      { text: g.latLabel, x: mid, y: 152 },
+      { text: 'Forward', x: mid, y: 216 },
+      { text: 'Inserts', x: g.cx, y: 59 },
+    ];
+  }),
+  { text: 'Bridge', x: 269, y: 152 },
+  { text: 'Forward', x: 269, y: 430 },
+  { text: 'Reverse', x: 269, y: 545 },
+  { text: 'Left', x: 163, y: 520 },
+  { text: 'Right', x: 373, y: 520 },
+  { text: 'Thumb Insert Type', x: 417, y: 396 },
+];
 
-export const pct = (v: number) => `${(v / TEMPLATE_SIZE) * 100}%`;
+export const SHEET_ARROWS: Arrow[] = [
+  // Finger pitch columns.
+  { x1: FINGERS.left.edgeX, y1: 8, x2: FINGERS.left.edgeX, y2: 214, heads: 'both' },
+  { x1: FINGERS.left.colX, y1: 115, x2: FINGERS.left.outX, y2: 115, heads: 'end' },
+  { x1: FINGERS.right.edgeX, y1: 8, x2: FINGERS.right.edgeX, y2: 214, heads: 'both' },
+  { x1: FINGERS.right.colX + 78, y1: 115, x2: FINGERS.right.outX, y2: 115, heads: 'end' },
+  // Spans: each span box points up to its finger and down to the thumb.
+  { x1: 172, y1: 262, x2: 154, y2: 172, heads: 'end' },
+  { x1: 368, y1: 262, x2: 386, y2: 172, heads: 'end' },
+  { x1: 193, y1: 334, x2: 226, y2: 440, heads: 'end' },
+  { x1: 347, y1: 334, x2: 311, y2: 440, heads: 'end' },
+  // Thumb pitch.
+  { x1: 269, y1: 368, x2: 269, y2: 352, heads: 'end' },
+  { x1: 269, y1: 598, x2: 269, y2: 616, heads: 'end' },
+  { x1: 124, y1: 482, x2: 108, y2: 482, heads: 'end' },
+  { x1: 412, y1: 482, x2: 428, y2: 482, heads: 'end' },
+];
+
+export const SHEET_DOTTED: DottedLine[] = [
+  { x1: FINGERS.left.cx - 52, x2: FINGERS.left.cx + 52, y: 48 },
+  { x1: FINGERS.right.cx - 52, x2: FINGERS.right.cx + 52, y: 48 },
+  { x1: 352, x2: 482, y: 424 },
+];
+
+/** The span type picker drawn between the spans: one lettered circle per type. */
+export const SPAN_PICKER = { y: 214, r: 15, gap: 44, cx: 269, labelY: 244 };
+
+export const pctX = (v: number) => `${(v / TEMPLATE_W) * 100}%`;
+export const pctY = (v: number) => `${(v / TEMPLATE_H) * 100}%`;

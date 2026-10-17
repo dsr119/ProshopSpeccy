@@ -14,6 +14,7 @@ import {
   SPAN_FIELDS,
   SPAN_TYPE_HINTS,
   SPAN_TYPE_LABELS,
+  THUMB_INSERT_TYPES,
   snapshotToDraft,
   validateDraft,
   type Draft,
@@ -456,7 +457,7 @@ function FieldControl({
   const errId = `${id}-error`;
   const describedBy = error ? errId : undefined;
 
-  if (def.kind === 'enum_hand' || def.kind === 'enum_thumb_mode' || def.kind === 'enum_span_type') {
+  if (def.kind === 'enum_hand' || def.kind === 'enum_thumb_mode' || def.kind === 'enum_span_type' || def.kind === 'enum_thumb_insert') {
     const options =
       def.kind === 'enum_hand'
         ? [
@@ -470,10 +471,12 @@ function FieldControl({
               ['no_thumb', 'No-thumb'],
               ['', 'Not recorded'],
             ]
-          : [
-              ...(Object.entries(SPAN_TYPE_LABELS) as Array<[SpanType, string]>).map(([v, l]) => [v, l]),
-              ['', 'Not recorded'],
-            ];
+          : def.kind === 'enum_thumb_insert'
+            ? [...THUMB_INSERT_TYPES.map((t) => [t, t]), ['', 'Not recorded']]
+            : [
+                ...(Object.entries(SPAN_TYPE_LABELS) as Array<[SpanType, string]>).map(([v, l]) => [v, l]),
+                ['', 'Not recorded'],
+              ];
     return (
       <div className="field" role="radiogroup" aria-labelledby={`${id}-label`}>
         <span id={`${id}-label`} className="field__label">

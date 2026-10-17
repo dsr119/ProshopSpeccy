@@ -1,35 +1,44 @@
 import { describe, expect, it } from 'vitest';
 import { FIELDS } from '../measurements/schema';
-import { OVERLAY_LABELS, OVERLAY_SLOTS, SPAN_HEADING, TEMPLATE_SIZE } from './overlayConfig';
-import { fitFont } from './SpecSheet';
+import { OVERLAY_SLOTS, SHEET_LABELS, TEMPLATE_H, TEMPLATE_W } from './overlayConfig';
+import { fitFont, pitchText } from './SpecSheet';
 
-// The span type is shown as the span heading rather than in a box of its own.
-const sheetFields = FIELDS.filter((f) => !['identity', 'details'].includes(f.group) && f.key !== 'span_type').map((f) => f.key);
+// The span type is the lettered picker; these are kept in the record and the table but not drawn on the sheet.
+const OFF_SHEET = new Set(['span_type', 'middle_actual_cut', 'ring_actual_cut', 'thumb_oval', 'thumb_oval_angle']);
+const sheetFields = FIELDS.filter((f) => !['identity', 'details'].includes(f.group) && !OFF_SHEET.has(f.key)).map((f) => f.key);
 
 function overlaps(a: { x: number; y: number; w: number; h: number }, b: typeof a) {
   return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 }
 
 describe('overlay configuration', () => {
-  it('places every sheet measurement exactly once', () => {
-    const keys = OVERLAY_SLOTS.map((s) => s.field).sort();
+  it('places every sheet measurement, with one box per pitch direction', () => {
+    const keys = [...new Set(OVERLAY_SLOTS.map((s) => s.field))].sort();
     expect(keys).toEqual([...sheetFields].sort());
+    const ids = OVERLAY_SLOTS.map((s) => `${s.field}:${s.dir ?? ''}`);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('keeps every slot inside the 550 x 550 template', () => {
-    for (const s of [...OVERLAY_SLOTS, ...OVERLAY_LABELS, SPAN_HEADING]) {
+  it('keeps every slot and label inside the sheet', () => {
+    for (const s of OVERLAY_SLOTS) {
       expect(s.x).toBeGreaterThanOrEqual(0);
       expect(s.y).toBeGreaterThanOrEqual(0);
-      expect(s.x + s.w).toBeLessThanOrEqual(TEMPLATE_SIZE);
-      expect(s.y + s.h).toBeLessThanOrEqual(TEMPLATE_SIZE);
+      expect(s.x + s.w).toBeLessThanOrEqual(TEMPLATE_W);
+      expect(s.y + s.h).toBeLessThanOrEqual(TEMPLATE_H);
+    }
+    for (const l of SHEET_LABELS) {
+      expect(l.x).toBeGreaterThan(0);
+      expect(l.x).toBeLessThan(TEMPLATE_W);
+      expect(l.y).toBeLessThan(TEMPLATE_H);
     }
   });
 
-  it('never overlaps two slots or a slot and a label', () => {
-    const all = [...OVERLAY_SLOTS.map((s) => ({ ...s, id: s.field })), ...OVERLAY_LABELS.map((l) => ({ ...l, id: l.text }))];
-    for (let i = 0; i < all.length; i++) {
-      for (let j = i + 1; j < all.length; j++) {
-        expect(overlaps(all[i], all[j]), `${all[i].id} overlaps ${all[j].id}`).toBe(false);
+  it('never overlaps two slots', () => {
+    for (let i = 0; i < OVERLAY_SLOTS.length; i++) {
+      for (let j = i + 1; j < OVERLAY_SLOTS.length; j++) {
+        const a = OVERLAY_SLOTS[i];
+        const b = OVERLAY_SLOTS[j];
+        expect(overlaps(a, b), `${a.field} overlaps ${b.field}`).toBe(false);
       }
     }
   });
@@ -39,5 +48,12 @@ describe('overlay configuration', () => {
     expect(short.lines).toBe(1);
     const long = fitFont('Lat 1234567.123456 →Right', 114, 28);
     expect(long.size * 0.6 * 'Lat 1234567.123456 →Right'.length).toBeLessThanOrEqual((114 - 8) * long.lines + 0.001);
+  });
+
+  it('prints pitches as fractions, signing finger lateral pitch', () => {
+    expect(pitchText('3/8', 'forward', false)).toBe('3/8');
+    expect(pitchText('1/4', 'left', true)).toBe('-1/4');
+    expect(pitchText('1 1/32', 'right', true)).toBe('+1 1/32');
+    expect(pitchText('0', 'none', true)).toBe('0');
   });
 });

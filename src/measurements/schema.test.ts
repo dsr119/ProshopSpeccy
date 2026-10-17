@@ -35,8 +35,8 @@ describe('measurement schema', () => {
   it('needs a span type before span values', () => {
     expect(validateDraft(draftWith({ middle_cut_to_cut: { text: '4 3/8' } })).middle_cut_to_cut).toMatch(/Full Span/);
     expect(validateDraft(draftWith({ span_type: { text: 'full_span' }, middle_cut_to_cut: { text: '4 3/8' } }))).toEqual({});
-    const s = draftToSnapshot(draftWith({ span_type: { text: 'cut_to_switch' }, ring_cut_to_cut: { text: '4' } }));
-    expect(formatValue('span_type', s.span_type)).toBe('Cut to Switch Grip Cut');
+    const s = draftToSnapshot(draftWith({ span_type: { text: 'cut_to_outer' }, ring_cut_to_cut: { text: '4' } }));
+    expect(formatValue('span_type', s.span_type)).toBe('Cut to Outer');
   });
 
   it('limits pitch to 0–2 inches in 1/32 steps', () => {
