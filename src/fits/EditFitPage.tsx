@@ -10,6 +10,10 @@ import {
   draftToSnapshot,
   draftsEqual,
   isPitchKind,
+  PITCH_AMOUNTS,
+  SPAN_FIELDS,
+  SPAN_TYPE_HINTS,
+  SPAN_TYPE_LABELS,
   snapshotToDraft,
   validateDraft,
   type Draft,
@@ -17,6 +21,7 @@ import {
   type FieldDef,
   type FieldGroup,
   type FieldKey,
+  type SpanType,
 } from '../measurements/schema';
 import { SpecSheet, displayFromDraft } from '../template/SpecSheet';
 import { getCustomer, type Customer } from '../customers/api';
@@ -129,7 +134,9 @@ export function EditFitPage() {
   }
 
   function focusField(key: FieldKey) {
-    const el = document.getElementById(`field-${key}`) as HTMLElement | null;
+    // A span box with no span type yet takes you to the span type choice.
+    const target = draft && !isFieldShown(key, draft) ? 'span_type' : key;
+    const el = document.getElementById(`field-${target}`) as HTMLElement | null;
     if (el) {
       el.scrollIntoView({ block: 'center', behavior: 'smooth' });
       el.focus({ preventScroll: true });
@@ -251,10 +258,10 @@ export function EditFitPage() {
                   switch back to thumb-in.
                 </p>
               )}
-              {FIELDS.filter((f) => f.group === group).map((f) => (
+              {FIELDS.filter((f) => f.group === group && isFieldShown(f.key, draft)).map((f) => (
                 <FieldControl
                   key={f.key}
-                  def={f}
+                  def={spanLabelled(f, draft)}
                   value={draft[f.key]}
                   error={visibleErrors[f.key]}
                   onChange={(patch) => setField(f.key, patch)}
@@ -405,6 +412,18 @@ function safeSnapshot(draft: Draft) {
   }
 }
 
+/** Span values only appear once a span type is chosen (or a value is already there). */
+function isFieldShown(key: FieldKey, draft: Draft): boolean {
+  return !(SPAN_FIELDS as readonly FieldKey[]).includes(key) || !!draft.span_type.text || draft[key].text.trim() !== '';
+}
+
+/** "Middle finger span" becomes e.g. "Middle finger Full Span" once a type is chosen. */
+function spanLabelled(def: FieldDef, draft: Draft): FieldDef {
+  const type = draft.span_type.text as SpanType;
+  if (!(SPAN_FIELDS as readonly FieldKey[]).includes(def.key) || !SPAN_TYPE_LABELS[type]) return def;
+  return { ...def, label: def.label.replace(/span$/, SPAN_TYPE_LABELS[type]) };
+}
+
 const DIR_OPTIONS: Record<'pitch_lateral' | 'pitch_fr', Array<[string, string]>> = {
   pitch_lateral: [
     ['', 'Direction…'],
@@ -437,7 +456,7 @@ function FieldControl({
   const errId = `${id}-error`;
   const describedBy = error ? errId : undefined;
 
-  if (def.kind === 'enum_hand' || def.kind === 'enum_thumb_mode') {
+  if (def.kind === 'enum_hand' || def.kind === 'enum_thumb_mode' || def.kind === 'enum_span_type') {
     const options =
       def.kind === 'enum_hand'
         ? [
@@ -445,11 +464,16 @@ function FieldControl({
             ['left', 'Left-handed'],
             ['', 'Not recorded'],
           ]
-        : [
-            ['thumb_in', 'Thumb-in'],
-            ['no_thumb', 'No-thumb'],
-            ['', 'Not recorded'],
-          ];
+        : def.kind === 'enum_thumb_mode'
+          ? [
+              ['thumb_in', 'Thumb-in'],
+              ['no_thumb', 'No-thumb'],
+              ['', 'Not recorded'],
+            ]
+          : [
+              ...(Object.entries(SPAN_TYPE_LABELS) as Array<[SpanType, string]>).map(([v, l]) => [v, l]),
+              ['', 'Not recorded'],
+            ];
     return (
       <div className="field" role="radiogroup" aria-labelledby={`${id}-label`}>
         <span id={`${id}-label`} className="field__label">
@@ -471,6 +495,9 @@ function FieldControl({
             </label>
           ))}
         </div>
+        {def.kind === 'enum_span_type' && value.text && (
+          <span className="muted small">{SPAN_TYPE_HINTS[value.text as SpanType]}</span>
+        )}
       </div>
     );
   }
@@ -486,6 +513,54 @@ function FieldControl({
   }
 
   const unit = def.unit === '°' ? 'degrees' : def.unit === 'in' ? 'inches' : null;
+
+  if (isPitchKind(def.kind)) {
+    // Values saved before the list existed (e.g. "0.125") stay selectable so they are never lost silently.
+    const amounts = value.text && !PITCH_AMOUNTS.includes(value.text) ? [value.text, ...PITCH_AMOUNTS] : PITCH_AMOUNTS;
+    return (
+      <div className={`field${error ? ' field--invalid' : ''}`}>
+        <label htmlFor={id} className="field__label">
+          {def.label}
+          <span className="muted"> (inches)</span>
+        </label>
+        <div className="field__row">
+          <select
+            id={id}
+            value={value.text}
+            onChange={(e) => onChange({ text: e.target.value })}
+            onFocus={onFocus}
+            aria-invalid={!!error}
+            aria-describedby={describedBy}
+          >
+            <option value="">Not recorded</option>
+            {amounts.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label={`${def.label} direction`}
+            value={value.dir}
+            onChange={(e) => onChange({ dir: e.target.value })}
+            onFocus={onFocus}
+          >
+            {DIR_OPTIONS[def.kind as 'pitch_lateral' | 'pitch_fr'].map(([v, label]) => (
+              <option key={v} value={v}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {error && (
+          <span id={errId} className="field-error">
+            {error}
+          </span>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className={`field${error ? ' field--invalid' : ''}`}>
       <label htmlFor={id} className="field__label">
@@ -506,20 +581,6 @@ function FieldControl({
           aria-invalid={!!error}
           aria-describedby={describedBy}
         />
-        {isPitchKind(def.kind) && (
-          <select
-            aria-label={`${def.label} direction`}
-            value={value.dir}
-            onChange={(e) => onChange({ dir: e.target.value })}
-            onFocus={onFocus}
-          >
-            {DIR_OPTIONS[def.kind as 'pitch_lateral' | 'pitch_fr'].map(([v, label]) => (
-              <option key={v} value={v}>
-                {label}
-              </option>
-            ))}
-          </select>
-        )}
       </div>
       {error && (
         <span id={errId} className="field-error">

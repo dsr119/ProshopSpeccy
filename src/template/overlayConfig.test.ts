@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { FIELDS } from '../measurements/schema';
-import { OVERLAY_LABELS, OVERLAY_SLOTS, TEMPLATE_SIZE } from './overlayConfig';
+import { OVERLAY_LABELS, OVERLAY_SLOTS, SPAN_HEADING, TEMPLATE_SIZE } from './overlayConfig';
 import { fitFont } from './SpecSheet';
 
-const sheetFields = FIELDS.filter((f) => !['identity', 'details'].includes(f.group)).map((f) => f.key);
+// The span type is shown as the span heading rather than in a box of its own.
+const sheetFields = FIELDS.filter((f) => !['identity', 'details'].includes(f.group) && f.key !== 'span_type').map((f) => f.key);
 
 function overlaps(a: { x: number; y: number; w: number; h: number }, b: typeof a) {
   return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
@@ -16,7 +17,7 @@ describe('overlay configuration', () => {
   });
 
   it('keeps every slot inside the 550 x 550 template', () => {
-    for (const s of [...OVERLAY_SLOTS, ...OVERLAY_LABELS]) {
+    for (const s of [...OVERLAY_SLOTS, ...OVERLAY_LABELS, SPAN_HEADING]) {
       expect(s.x).toBeGreaterThanOrEqual(0);
       expect(s.y).toBeGreaterThanOrEqual(0);
       expect(s.x + s.w).toBeLessThanOrEqual(TEMPLATE_SIZE);

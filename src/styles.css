@@ -513,6 +513,14 @@ a:focus-visible {
   color: #6a7385;
   font-weight: 600;
 }
+.sheet__label--span {
+  background: #fff;
+  color: #1a1a1a;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 2.1cqw;
+  white-space: nowrap;
+}
 .slot {
   position: absolute;
   display: flex;

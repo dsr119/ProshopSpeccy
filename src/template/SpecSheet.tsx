@@ -13,7 +13,7 @@ import {
   type FieldKey,
   type Snapshot,
 } from '../measurements/schema';
-import { FINGER_MAPPING, OVERLAY_LABELS, OVERLAY_SLOTS, TEMPLATE_SIZE, TEMPLATE_SRC, pct, type OverlaySlot } from './overlayConfig';
+import { FINGER_MAPPING, OVERLAY_LABELS, OVERLAY_SLOTS, SPAN_HEADING, TEMPLATE_SIZE, TEMPLATE_SRC, pct, type OverlaySlot } from './overlayConfig';
 
 export type SlotDisplay =
   | { state: 'value'; text: string; dir?: string }
@@ -28,7 +28,7 @@ export function displayFromSnapshot(snapshot: Snapshot | null): DisplayFn {
     if (isNotApplicable(key, snapshot)) return { state: 'na' };
     const v = snapshot?.[key] ?? null;
     if (v == null) return { state: 'empty' };
-    if (typeof v === 'string') return { state: 'value', text: v };
+    if (typeof v === 'string') return { state: 'value', text: formatValue(key, v) ?? v };
     return { state: 'value', text: v.entered, dir: 'dir' in v ? String(v.dir) : undefined };
   };
 }
@@ -92,6 +92,7 @@ export function SpecSheet({ display, onSelectField, activeField, caption }: Spec
             {l.text}
           </span>
         ))}
+        <SpanHeading display={display} />
         {OVERLAY_SLOTS.map((slot) => {
           const d = display(slot.field);
           const text = slotText(slot, d);
@@ -152,6 +153,21 @@ export function SpecSheet({ display, onSelectField, activeField, caption }: Spec
         (forward/reverse). “–” means not recorded; N/A means not applicable in no-thumb mode.
       </figcaption>
     </figure>
+  );
+}
+
+function SpanHeading({ display }: { display: DisplayFn }) {
+  const d = display('span_type');
+  const text = d.state === 'value' ? d.text : 'Span';
+  return (
+    <span
+      className="sheet__label sheet__label--span"
+      data-span-heading
+      aria-hidden="true"
+      style={{ left: pct(SPAN_HEADING.x), top: pct(SPAN_HEADING.y), width: pct(SPAN_HEADING.w), height: pct(SPAN_HEADING.h) }}
+    >
+      {text}
+    </span>
   );
 }
 

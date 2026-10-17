@@ -13,10 +13,10 @@ const LONG: Record<string, string | [string, string]> = {
   ring_cut_to_cut: '4 31/32',
   middle_actual_cut: '5 1/16',
   ring_actual_cut: '123456 99/100',
-  middle_lateral_pitch: ['1 15/64', 'right'],
+  middle_lateral_pitch: ['1 15/16', 'right'],
   middle_fr_pitch: ['1/4', 'forward'],
   ring_lateral_pitch: ['0', 'none'],
-  ring_fr_pitch: ['123456.123456', 'reverse'],
+  ring_fr_pitch: ['1 31/32', 'reverse'],
   thumb_lateral_pitch: ['3/8', 'left'],
   thumb_fr_pitch: ['1 1/4', 'reverse'],
   thumb_oval_angle: '-135.5',
@@ -27,10 +27,13 @@ async function seedLongValues(page: Page) {
   await page.goto(`/customers/${id}/edit`);
   await page.getByLabel('Right-handed').check();
   await page.getByLabel('Thumb-in').check();
+  await page.getByLabel('Cut to Switch Grip Cut', { exact: true }).check();
   for (const [field, v] of Object.entries(LONG)) {
     const [text, dir] = Array.isArray(v) ? v : [v, undefined];
-    await page.locator(`#field-${field}`).fill(text);
-    if (dir) await page.locator(`#field-${field}`).locator('xpath=..').locator('select').selectOption(dir);
+    const input = page.locator(`#field-${field}`);
+    if (dir) await input.selectOption(text);
+    else await input.fill(text);
+    if (dir) await page.locator(`#field-${field} + select`).selectOption(dir);
   }
   await page.locator('#field-fitting_notes').fill('FICTIONAL: grip pressure notes for layout testing.');
   await page.getByRole('button', { name: 'Save', exact: true }).click();

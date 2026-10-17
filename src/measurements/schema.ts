@@ -9,6 +9,7 @@ export const SCHEMA_VERSION = 1;
 export type FieldKind =
   | 'enum_hand'
   | 'enum_thumb_mode'
+  | 'enum_span_type'
   | 'text_short'
   | 'text_long'
   | 'length'
@@ -41,6 +42,7 @@ export const FIELD_KEYS = [
   'ring_oval',
   'ring_lateral_pitch',
   'ring_fr_pitch',
+  'span_type',
   'middle_cut_to_cut',
   'ring_cut_to_cut',
   'middle_actual_cut',
@@ -72,8 +74,11 @@ export const FIELDS: FieldDef[] = [
   { key: 'ring_lateral_pitch', kind: 'pitch_lateral', label: 'Ring finger lateral pitch', shortLabel: 'Lateral pitch', group: 'ring', unit: 'in' },
   { key: 'ring_fr_pitch', kind: 'pitch_fr', label: 'Ring finger forward/reverse pitch', shortLabel: 'Fwd/Rev pitch', group: 'ring', unit: 'in' },
 
-  { key: 'middle_cut_to_cut', kind: 'length', label: 'Middle span cut-to-cut', shortLabel: 'Middle cut-to-cut', group: 'spans', unit: 'in', thumbDependent: true },
-  { key: 'ring_cut_to_cut', kind: 'length', label: 'Ring span cut-to-cut', shortLabel: 'Ring cut-to-cut', group: 'spans', unit: 'in', thumbDependent: true },
+  // What the upper span boxes measure. The keys below keep their original names (stable
+  // database keys); older fits without a span type were cut-to-cut.
+  { key: 'span_type', kind: 'enum_span_type', label: 'Span measured', shortLabel: 'Span', group: 'spans', thumbDependent: true },
+  { key: 'middle_cut_to_cut', kind: 'length', label: 'Middle finger span', shortLabel: 'Middle span', group: 'spans', unit: 'in', thumbDependent: true },
+  { key: 'ring_cut_to_cut', kind: 'length', label: 'Ring finger span', shortLabel: 'Ring span', group: 'spans', unit: 'in', thumbDependent: true },
   { key: 'middle_actual_cut', kind: 'length', label: 'Middle span actual-cut', shortLabel: 'Middle actual-cut', group: 'spans', unit: 'in', thumbDependent: true },
   { key: 'ring_actual_cut', kind: 'length', label: 'Ring span actual-cut', shortLabel: 'Ring actual-cut', group: 'spans', unit: 'in', thumbDependent: true },
 
@@ -103,6 +108,9 @@ export type LateralDir = 'left' | 'right' | 'none';
 export type ForwardDir = 'forward' | 'reverse' | 'none';
 export type Hand = 'right' | 'left';
 export type ThumbMode = 'thumb_in' | 'no_thumb';
+export type SpanType = 'cut_to_cut' | 'full_span' | 'cut_to_switch';
+
+export const SPAN_FIELDS = ['middle_cut_to_cut', 'ring_cut_to_cut'] as const;
 
 /** A saved numeric value: the notation as entered plus its exact fraction. */
 export interface StoredNumber extends Rational {
@@ -130,6 +138,29 @@ export function isNumericKind(kind: FieldKind): boolean {
 
 export function isPitchKind(kind: FieldKind): boolean {
   return kind === 'pitch_lateral' || kind === 'pitch_fr';
+}
+
+/** Pitches run from 0 to 2 inches in steps of 1/32 (mirrored in private.normalize_fit_snapshot). */
+export const PITCH_MAX = 2;
+export const PITCH_STEP_DENOMINATOR = 32;
+
+/** Pitch amounts offered in the editor, as entered text: 0, 1/32, 1/16, … 1 31/32, 2. */
+export const PITCH_AMOUNTS: string[] = Array.from({ length: PITCH_MAX * PITCH_STEP_DENOMINATOR + 1 }, (_, i) => {
+  const whole = Math.floor(i / PITCH_STEP_DENOMINATOR);
+  let n = i % PITCH_STEP_DENOMINATOR;
+  let d = PITCH_STEP_DENOMINATOR;
+  while (n > 0 && n % 2 === 0) {
+    n /= 2;
+    d /= 2;
+  }
+  if (n === 0) return String(whole);
+  return whole ? `${whole} ${n}/${d}` : `${n}/${d}`;
+});
+
+function pitchRangeError(value: Rational): string | null {
+  if (value.n > PITCH_MAX * value.d) return `Pitch must be between 0 and ${PITCH_MAX} inches`;
+  if (PITCH_STEP_DENOMINATOR % value.d !== 0) return `Use steps of 1/${PITCH_STEP_DENOMINATOR} inch`;
+  return null;
 }
 
 export function emptySnapshot(): Snapshot {
@@ -172,8 +203,18 @@ export function validateDraft(draft: Draft): DraftErrors {
       errors[f.key] = parsed.error;
       continue;
     }
+    const rangeError = isPitchKind(f.kind) ? pitchRangeError(parsed.value) : null;
+    if (rangeError) {
+      errors[f.key] = rangeError;
+      continue;
+    }
     if (isPitchKind(f.kind) && parsed.value.n !== 0 && (!dir || dir === 'none')) {
       errors[f.key] = f.kind === 'pitch_lateral' ? 'Choose left or right' : 'Choose forward or reverse';
+    }
+  }
+  if (!draft.span_type.text) {
+    for (const key of SPAN_FIELDS) {
+      if (draft[key].text.trim() !== '' && !errors[key]) errors[key] = 'Choose Cut to Cut, Full Span or Cut to Switch Grip Cut first';
     }
   }
   return errors;
@@ -231,6 +272,17 @@ export function directionLabel(dir: string): string {
 
 export const HAND_LABELS: Record<Hand, string> = { right: 'Right-handed', left: 'Left-handed' };
 export const THUMB_MODE_LABELS: Record<ThumbMode, string> = { thumb_in: 'Thumb-in', no_thumb: 'No-thumb' };
+export const SPAN_TYPE_LABELS: Record<SpanType, string> = {
+  cut_to_cut: 'Cut to Cut',
+  full_span: 'Full Span',
+  cut_to_switch: 'Cut to Switch Grip Cut',
+};
+/** What each span type measures, for the editor. */
+export const SPAN_TYPE_HINTS: Record<SpanType, string> = {
+  cut_to_cut: 'cut of finger hole to cut of thumb hole',
+  full_span: 'grip to thumb cut',
+  cut_to_switch: 'cut of finger hole to cut of the switch grip hole',
+};
 
 /** Plain-text value for display, history and print; null when not recorded. */
 export function formatValue(key: FieldKey, value: Snapshot[FieldKey], opts: { unit?: boolean } = {}): string | null {
@@ -239,6 +291,7 @@ export function formatValue(key: FieldKey, value: Snapshot[FieldKey], opts: { un
   if (typeof value === 'string') {
     if (f.kind === 'enum_hand') return HAND_LABELS[value as Hand] ?? value;
     if (f.kind === 'enum_thumb_mode') return THUMB_MODE_LABELS[value as ThumbMode] ?? value;
+    if (f.kind === 'enum_span_type') return SPAN_TYPE_LABELS[value as SpanType] ?? value;
     return value;
   }
   const unit = opts.unit && f.unit ? (f.unit === '°' ? '°' : '"') : '';
@@ -276,6 +329,7 @@ export function parseDisplayDraft(draft: Draft, key: FieldKey): { text: string; 
   if (text === '') return null;
   if (f.kind === 'enum_hand') return { text: HAND_LABELS[text as Hand] ?? text };
   if (f.kind === 'enum_thumb_mode') return { text: THUMB_MODE_LABELS[text as ThumbMode] ?? text };
+  if (f.kind === 'enum_span_type') return { text: SPAN_TYPE_LABELS[text as SpanType] ?? text };
   if (isPitchKind(f.kind)) return { text, dir: draft[key].dir || undefined };
   return { text };
 }
