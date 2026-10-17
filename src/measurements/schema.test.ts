@@ -5,6 +5,7 @@ import {
   emptySnapshot,
   formatValue,
   isNotApplicable,
+  PITCH_AMOUNTS,
   snapshotToDraft,
   snapshotToPayload,
   validateDraft,
@@ -29,6 +30,17 @@ describe('measurement schema', () => {
   it('preserves entered notation alongside the exact value', () => {
     const s = draftToSnapshot(draftWith({ middle_cut_to_cut: { text: ' 4  3/8 ' } }));
     expect(s.middle_cut_to_cut).toEqual({ entered: '4 3/8', n: 35, d: 8 });
+  });
+
+  it('limits pitch to 0–2 inches in 1/32 steps', () => {
+    expect(PITCH_AMOUNTS).toHaveLength(65);
+    expect(PITCH_AMOUNTS.slice(0, 5)).toEqual(['0', '1/32', '1/16', '3/32', '1/8']);
+    expect(PITCH_AMOUNTS.slice(-3)).toEqual(['1 15/16', '1 31/32', '2']);
+    expect(validateDraft(draftWith({ middle_fr_pitch: { text: '2', dir: 'forward' } }))).toEqual({});
+    expect(validateDraft(draftWith({ middle_fr_pitch: { text: '0.125', dir: 'reverse' } }))).toEqual({});
+    expect(validateDraft(draftWith({ ring_lateral_pitch: { text: '2 1/32', dir: 'left' } })).ring_lateral_pitch).toMatch(/between 0 and 2/);
+    expect(validateDraft(draftWith({ thumb_fr_pitch: { text: '1/64', dir: 'forward' } })).thumb_fr_pitch).toMatch(/1\/32/);
+    for (const a of PITCH_AMOUNTS) expect(validateDraft(draftWith({ middle_lateral_pitch: { text: a, dir: 'left' } }))).toEqual({});
   });
 
   it('requires a direction for non-zero pitch and allows neutral zero', () => {

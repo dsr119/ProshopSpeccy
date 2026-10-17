@@ -132,6 +132,29 @@ export function isPitchKind(kind: FieldKind): boolean {
   return kind === 'pitch_lateral' || kind === 'pitch_fr';
 }
 
+/** Pitches run from 0 to 2 inches in steps of 1/32 (mirrored in private.normalize_fit_snapshot). */
+export const PITCH_MAX = 2;
+export const PITCH_STEP_DENOMINATOR = 32;
+
+/** Pitch amounts offered in the editor, as entered text: 0, 1/32, 1/16, … 1 31/32, 2. */
+export const PITCH_AMOUNTS: string[] = Array.from({ length: PITCH_MAX * PITCH_STEP_DENOMINATOR + 1 }, (_, i) => {
+  const whole = Math.floor(i / PITCH_STEP_DENOMINATOR);
+  let n = i % PITCH_STEP_DENOMINATOR;
+  let d = PITCH_STEP_DENOMINATOR;
+  while (n > 0 && n % 2 === 0) {
+    n /= 2;
+    d /= 2;
+  }
+  if (n === 0) return String(whole);
+  return whole ? `${whole} ${n}/${d}` : `${n}/${d}`;
+});
+
+function pitchRangeError(value: Rational): string | null {
+  if (value.n > PITCH_MAX * value.d) return `Pitch must be between 0 and ${PITCH_MAX} inches`;
+  if (PITCH_STEP_DENOMINATOR % value.d !== 0) return `Use steps of 1/${PITCH_STEP_DENOMINATOR} inch`;
+  return null;
+}
+
 export function emptySnapshot(): Snapshot {
   return Object.fromEntries(FIELD_KEYS.map((k) => [k, null])) as Snapshot;
 }
@@ -170,6 +193,11 @@ export function validateDraft(draft: Draft): DraftErrors {
     const parsed = parseMeasurement(trimmed, f.kind === 'angle');
     if (!parsed.ok) {
       errors[f.key] = parsed.error;
+      continue;
+    }
+    const rangeError = isPitchKind(f.kind) ? pitchRangeError(parsed.value) : null;
+    if (rangeError) {
+      errors[f.key] = rangeError;
       continue;
     }
     if (isPitchKind(f.kind) && parsed.value.n !== 0 && (!dir || dir === 'none')) {

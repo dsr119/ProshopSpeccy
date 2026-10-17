@@ -2,8 +2,11 @@ import { expect, test, type Page } from '@playwright/test';
 import { USERS, createCustomer, loginAsStaff, slot, unique } from './helpers';
 
 async function fill(page: Page, field: string, value: string, dir?: string) {
-  await page.locator(`#field-${field}`).fill(value);
-  if (dir) await page.locator(`#field-${field}`).locator('xpath=..').locator('select').selectOption(dir);
+  const input = page.locator(`#field-${field}`);
+  // Pitch amounts are picked from a list; everything else is typed.
+  if (field.endsWith('_pitch')) await input.selectOption(value);
+  else await input.fill(value);
+  if (dir) await page.locator(`#field-${field} + select`).selectOption(dir);
 }
 
 test('mixed fractions, pitch directions, blank and zero save and reload in the right places', async ({ page }) => {

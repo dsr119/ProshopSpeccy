@@ -10,6 +10,7 @@ import {
   draftToSnapshot,
   draftsEqual,
   isPitchKind,
+  PITCH_AMOUNTS,
   snapshotToDraft,
   validateDraft,
   type Draft,
@@ -486,6 +487,54 @@ function FieldControl({
   }
 
   const unit = def.unit === '°' ? 'degrees' : def.unit === 'in' ? 'inches' : null;
+
+  if (isPitchKind(def.kind)) {
+    // Values saved before the list existed (e.g. "0.125") stay selectable so they are never lost silently.
+    const amounts = value.text && !PITCH_AMOUNTS.includes(value.text) ? [value.text, ...PITCH_AMOUNTS] : PITCH_AMOUNTS;
+    return (
+      <div className={`field${error ? ' field--invalid' : ''}`}>
+        <label htmlFor={id} className="field__label">
+          {def.label}
+          <span className="muted"> (inches)</span>
+        </label>
+        <div className="field__row">
+          <select
+            id={id}
+            value={value.text}
+            onChange={(e) => onChange({ text: e.target.value })}
+            onFocus={onFocus}
+            aria-invalid={!!error}
+            aria-describedby={describedBy}
+          >
+            <option value="">Not recorded</option>
+            {amounts.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label={`${def.label} direction`}
+            value={value.dir}
+            onChange={(e) => onChange({ dir: e.target.value })}
+            onFocus={onFocus}
+          >
+            {DIR_OPTIONS[def.kind as 'pitch_lateral' | 'pitch_fr'].map(([v, label]) => (
+              <option key={v} value={v}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {error && (
+          <span id={errId} className="field-error">
+            {error}
+          </span>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className={`field${error ? ' field--invalid' : ''}`}>
       <label htmlFor={id} className="field__label">
@@ -506,20 +555,6 @@ function FieldControl({
           aria-invalid={!!error}
           aria-describedby={describedBy}
         />
-        {isPitchKind(def.kind) && (
-          <select
-            aria-label={`${def.label} direction`}
-            value={value.dir}
-            onChange={(e) => onChange({ dir: e.target.value })}
-            onFocus={onFocus}
-          >
-            {DIR_OPTIONS[def.kind as 'pitch_lateral' | 'pitch_fr'].map(([v, label]) => (
-              <option key={v} value={v}>
-                {label}
-              </option>
-            ))}
-          </select>
-        )}
       </div>
       {error && (
         <span id={errId} className="field-error">
