@@ -1,6 +1,6 @@
 // Parses measurements as staff type them ("4 3/8", "3/8", "4.375", "4-3/8")
 // into exact reduced fractions. Mirrors private.parse_measurement() in
-// supabase/migrations/20261017000200_fits_and_revisions.sql; keep them in step.
+// supabase/migrations/20261017042852_fits_and_revisions.sql; keep them in step.
 
 export interface Rational {
   n: number;

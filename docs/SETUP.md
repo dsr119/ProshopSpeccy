@@ -6,25 +6,23 @@ The app needs a Supabase project. The hosted project for this shop is
 Nothing in this repo contains a secret. The browser only ever gets the public (publishable/anon) key; every
 permission is enforced in the database. **Never put the service-role / secret key in `.env*` or in the app.**
 
-## 1. Apply the database migrations to the hosted project
+## 1. Database migrations
 
-You need the [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started) (it is also a dev
-dependency here, so `npx supabase` works after `npm install`).
+**Already applied** to the hosted project on 2026-10-17 (all four files in `supabase/migrations/`, verified against
+the local test stack). The migration filenames match the versions recorded in the hosted project, so nothing needs
+re-running. Future schema changes go in new migration files and are applied with:
 
 ```sh
 npm install
 npx supabase login                       # opens the browser once
 npx supabase link --project-ref bkvijjqhyiyfkuavmerh   # asks for the database password
-npx supabase db push                     # applies supabase/migrations/*.sql
+npx supabase db push                     # applies only migrations the project has not seen yet
 ```
 
 `db push` does **not** run `supabase/seed.sql`, so no fictional data reaches the hosted project.
 
-Alternative without the CLI: open the Supabase dashboard › SQL Editor and run each file in `supabase/migrations/`
-in filename order.
-
-This creates the tables, row-level security policies, the save/restore functions and a private Storage bucket
-`spec-photos` (JPEG/PNG/WebP, 15 MB limit).
+The migrations create the tables, row-level security policies, the save/restore functions and a private Storage
+bucket `spec-photos` (JPEG/PNG/WebP, 15 MB limit).
 
 ## 2. Lock down sign-up (dashboard › Authentication)
 
@@ -56,8 +54,8 @@ This creates the tables, row-level security policies, the save/restore functions
 
 ```sh
 cp .env.example .env.local
-# Fill VITE_SUPABASE_PUBLISHABLE_KEY from dashboard › Project Settings › API Keys
-# (the "publishable" key, or the legacy "anon" key). Not the secret/service-role key.
+# .env.example already holds the project URL and its public publishable key.
+# Never put the secret/service-role key here.
 npm run dev        # http://localhost:5173
 npm run build      # static files in dist/, deployable to any static host (Netlify, Vercel, Cloudflare Pages…)
 ```
