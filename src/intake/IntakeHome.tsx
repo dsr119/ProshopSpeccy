@@ -4,7 +4,7 @@ import { toAppError, type AppError } from '../lib/errors';
 import { formatDateTime } from '../lib/format';
 import { useAsync } from '../lib/useAsync';
 import { ErrorBanner, Notice, Spinner } from '../components/ui';
-import { claimNext, getCounts, getPeopleStats, isAdminName, listItems, releaseItem, type IntakeItem } from './api';
+import { claimNext, getCounts, getPeopleStats, isAdminName, listItems, listRemovedItems, releaseItem, removeItem, restoreItem, type IntakeItem } from './api';
 
 /** The app's own customer page, opened in a new tab. */
 export const appCustomerUrl = (id: string) => `${import.meta.env.BASE_URL}customers/${id}`;
@@ -12,7 +12,7 @@ export const appCustomerUrl = (id: string) => `${import.meta.env.BASE_URL}custom
 export function IntakeHome() {
   const name = useOutletContext<string>();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const counts = useAsync(getCounts, []);
   const working = useAsync(() => listItems('working'), []);
   const unreadable = useAsync(() => listItems('unreadable'), []);
@@ -36,6 +36,31 @@ export function IntakeHome() {
     }
   }
 
+  function reloadAll() {
+    unreadable.reload();
+    working.reload();
+    counts.reload();
+  }
+
+  async function remove(item: IntakeItem) {
+    try {
+      await removeItem(item.id, name);
+      reloadAll();
+    } catch (e) {
+      setError(toAppError(e));
+    }
+  }
+
+  async function undoRemove(id: string) {
+    try {
+      await restoreItem(id);
+      setParams({}, { replace: true });
+      reloadAll();
+    } catch (e) {
+      setError(toAppError(e));
+    }
+  }
+
   async function putBack(item: IntakeItem) {
     try {
       await releaseItem(item.id);
@@ -53,6 +78,14 @@ export function IntakeHome() {
       <h1>Paper spec sheets</h1>
       {params.get('finished') && <Notice tone="success">That sheet is now in the app.</Notice>}
       {params.get('empty') && <Notice>The queue is empty. Nice work.</Notice>}
+      {params.get('removed') && (
+        <Notice tone="success">
+          That sheet was deleted from the queue.{' '}
+          <button type="button" className="linklike" onClick={() => undoRemove(params.get('removed')!)}>
+            Undo
+          </button>
+        </Notice>
+      )}
       <ErrorBanner error={counts.error ?? error} onRetry={counts.error ? counts.reload : undefined} />
 
       <dl className="intake-counts">
@@ -109,9 +142,14 @@ export function IntakeHome() {
             <span>
               {i.note ?? 'No note'} <span className="muted small">· added by {i.added_by ?? 'unknown'}</span>
             </span>
-            <button type="button" className="btn btn--small" onClick={() => putBack(i)}>
-              Put back in the queue
-            </button>
+            <span className="intake-actions--inline">
+              <button type="button" className="btn btn--small" onClick={() => putBack(i)}>
+                Put back in the queue
+              </button>
+              <button type="button" className="btn btn--small btn--danger-outline" onClick={() => remove(i)}>
+                Delete
+              </button>
+            </span>
           </>
         )}
       />
@@ -132,6 +170,7 @@ export function IntakeHome() {
           </>
         )}
       />
+      <RemovedSheets onRestored={reloadAll} />
     </main>
   );
 }
@@ -182,6 +221,69 @@ function PeopleStats() {
         </button>
       </p>
     </section>
+  );
+}
+
+/** Sheets deleted from the queue, each with a way back. */
+function RemovedSheets({ onRestored }: { onRestored: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [rows, setRows] = useState<IntakeItem[] | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
+
+  async function load() {
+    try {
+      setRows(await listRemovedItems());
+    } catch (e) {
+      setError(toAppError(e));
+    }
+  }
+
+  async function restore(id: string) {
+    setError(null);
+    try {
+      await restoreItem(id);
+      setRows((r) => r?.filter((x) => x.id !== id) ?? null);
+      onRestored();
+    } catch (e) {
+      setError(toAppError(e));
+    }
+  }
+
+  return (
+    <details
+      className="removed-list"
+      onToggle={(e) => {
+        const isOpen = (e.target as HTMLDetailsElement).open;
+        setOpen(isOpen);
+        if (isOpen) load();
+      }}
+    >
+      <summary>Recently deleted sheets</summary>
+      <ErrorBanner error={error} />
+      {!rows ? (
+        open && !error && <Spinner />
+      ) : rows.length === 0 ? (
+        <p className="muted">No deleted sheets.</p>
+      ) : (
+        <ul className="intake-matches">
+          {rows.map((i) => (
+            <li key={i.id}>
+              <span>
+                Added by {i.added_by ?? 'unknown'}
+                <span className="muted small">
+                  {' '}
+                  · deleted {i.removed_at ? formatDateTime(i.removed_at) : ''}
+                  {i.removed_by ? ` by ${i.removed_by}` : ''}
+                </span>
+              </span>
+              <button type="button" className="btn btn--small" onClick={() => restore(i.id)}>
+                Bring back
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </details>
   );
 }
 

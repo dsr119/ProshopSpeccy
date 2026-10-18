@@ -27,6 +27,8 @@ export interface IntakeItem {
   photo_id: string | null;
   done_by: string | null;
   done_at: string | null;
+  removed_at?: string | null;
+  removed_by?: string | null;
 }
 
 export type IntakeCounts = Record<IntakeStatus, number>;
@@ -198,6 +200,24 @@ export async function releaseItem(id: string, unreadable = false, note: string |
   const res = await supabase.rpc('release_intake', { p_id: id, p_unreadable: unreadable, p_note: note });
   if (res.error) throw toAppError(res.error);
   return res.data as IntakeItem;
+}
+
+/** Takes a sheet out of the queue (a duplicate or a bad photo). It can be brought back. */
+export async function removeItem(id: string, name: string): Promise<void> {
+  const res = await supabase.rpc('remove_intake', { p_id: id, p_name: name });
+  if (res.error) throw toAppError(res.error);
+}
+
+export async function restoreItem(id: string): Promise<void> {
+  const res = await supabase.rpc('restore_intake', { p_id: id });
+  if (res.error) throw toAppError(res.error);
+}
+
+/** Sheets taken out of the queue, newest first. */
+export async function listRemovedItems(): Promise<IntakeItem[]> {
+  const res = await supabase.rpc('list_removed_intake');
+  if (res.error) throw toAppError(res.error);
+  return (res.data ?? []) as IntakeItem[];
 }
 
 /** Photos already copied to the bowler, so a retry doesn't add them twice. */

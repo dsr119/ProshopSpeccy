@@ -1,9 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMembership } from '../lib/auth';
 import { toAppError, type AppError } from '../lib/errors';
 import { formatDate, formatDateTime } from '../lib/format';
-import { addRecent } from '../lib/recent';
+import { addRecent, forgetRecent } from '../lib/recent';
 import { useAsync } from '../lib/useAsync';
 import { Dialog, ErrorBanner, Notice, Spinner } from '../components/ui';
 import { HAND_LABELS, THUMB_MODE_LABELS, type Hand, type Snapshot, type ThumbMode } from '../measurements/schema';
@@ -14,7 +14,7 @@ import { PhotosPanel } from '../photos/PhotosPage';
 import { listBalls } from '../balls/api';
 import { BallsList } from '../balls/BallsSection';
 import { BowlerCard } from './BowlerCard';
-import { customerInput, getCustomer, updateCustomer, validateCustomer, type Customer, type CustomerInput } from './api';
+import { customerInput, getCustomer, removeCustomer, updateCustomer, validateCustomer, type Customer, type CustomerInput } from './api';
 import { CustomerFields } from './NewCustomerPage';
 
 export function FitIdentity({ snapshot }: { snapshot: Snapshot | null }) {
@@ -100,6 +100,8 @@ export function CustomerPage() {
   const balls = useAsync(() => listBalls(customerId), [customerId]);
   const [enlarged, setEnlarged] = useState(false);
   const [editingDetails, setEditingDetails] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const navigate = useNavigate();
   const view = params.get('view') === 'photos' ? 'photos' : 'sheet';
 
   useEffect(() => {
@@ -143,9 +145,14 @@ export function CustomerPage() {
         hand={snapshot?.hand as string | null}
         playStyle={snapshot?.play_style as string | null}
         actions={
-          <button type="button" className="btn btn--small no-print" onClick={() => setEditingDetails(true)}>
-            Edit bowler details
-          </button>
+          <span className="bowler__actions no-print">
+            <button type="button" className="btn btn--small" onClick={() => setEditingDetails(true)}>
+              Edit bowler details
+            </button>
+            <button type="button" className="btn btn--small btn--danger-outline" onClick={() => setRemoving(true)}>
+              Delete bowler
+            </button>
+          </span>
         }
       />
 
@@ -255,6 +262,17 @@ export function CustomerPage() {
         {enlarged && <SpecSheet display={displayFromSnapshot(snapshot)} />}
       </Dialog>
 
+      {removing && (
+        <RemoveCustomerDialog
+          customer={c}
+          onClose={() => setRemoving(false)}
+          onRemoved={() => {
+            forgetRecent(userId, c.id);
+            navigate(`/?removed=${c.id}&name=${encodeURIComponent(c.name)}`);
+          }}
+        />
+      )}
+
       {editingDetails && (
         <EditCustomerDialog
           customer={c}
@@ -266,6 +284,49 @@ export function CustomerPage() {
         />
       )}
     </main>
+  );
+}
+
+function RemoveCustomerDialog({ customer, onClose, onRemoved }: { customer: Customer; onClose: () => void; onRemoved: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<AppError | null>(null);
+  return (
+    <Dialog
+      open
+      title={`Delete ${customer.name}?`}
+      onClose={onClose}
+      actions={
+        <>
+          <button
+            type="button"
+            className="btn btn--danger"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setError(null);
+              try {
+                await removeCustomer(customer.id);
+                onRemoved();
+              } catch (e) {
+                setError(toAppError(e));
+                setBusy(false);
+              }
+            }}
+          >
+            {busy ? 'Deleting…' : 'Delete bowler'}
+          </button>
+          <button type="button" className="btn" onClick={onClose}>
+            Keep
+          </button>
+        </>
+      }
+    >
+      <ErrorBanner error={error} />
+      <p>
+        They disappear from the customer list and search, with their spec sheet, balls and photos. If it was a mistake, bring
+        them back from "Recently deleted bowlers" at the bottom of the customer list.
+      </p>
+    </Dialog>
   );
 }
 

@@ -33,6 +33,14 @@ export function addRecent(userId: string, c: Omit<RecentCustomer, 'viewedAt'>) {
   }
 }
 
+export function forgetRecent(userId: string, id: string) {
+  try {
+    localStorage.setItem(PREFIX + userId, JSON.stringify(read(userId).filter((r) => r.id !== id)));
+  } catch {
+    // ignore
+  }
+}
+
 /** Removes every per-user convenience entry kept in this browser. */
 export function clearLocalUserData() {
   try {

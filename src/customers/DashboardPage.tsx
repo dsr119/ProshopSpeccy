@@ -1,10 +1,22 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMembership } from '../lib/auth';
 import { toAppError, type AppError } from '../lib/errors';
 import { getRecent } from '../lib/recent';
-import { ErrorBanner, Spinner } from '../components/ui';
-import { PAGE_SIZE, SORT_LABELS, initials, searchCustomers, splitName, type CustomerSearchRow, type CustomerSort } from './api';
+import { formatDateTime } from '../lib/format';
+import { ErrorBanner, Notice, Spinner } from '../components/ui';
+import {
+  PAGE_SIZE,
+  SORT_LABELS,
+  initials,
+  listRemovedCustomers,
+  restoreCustomer,
+  searchCustomers,
+  splitName,
+  type CustomerSearchRow,
+  type CustomerSort,
+  type RemovedCustomer,
+} from './api';
 
 export function DashboardPage() {
   const { userId } = useMembership();
@@ -23,6 +35,20 @@ export function DashboardPage() {
   const [retry, setRetry] = useState(0);
   const listRef = useRef<HTMLUListElement>(null);
   const recent = getRecent(userId);
+  const [params, setParams] = useSearchParams();
+  const justRemoved = params.get('removed');
+  const [undoError, setUndoError] = useState<AppError | null>(null);
+
+  async function undoRemove(id: string) {
+    setUndoError(null);
+    try {
+      await restoreCustomer(id);
+      setParams({}, { replace: true });
+      setRetry((r) => r + 1);
+    } catch (e) {
+      setUndoError(toAppError(e));
+    }
+  }
 
   useEffect(() => {
     sessionStorage.setItem('proshop:lastQuery', query);
@@ -90,6 +116,16 @@ export function DashboardPage() {
           Add customer
         </Link>
       </div>
+
+      {justRemoved && (
+        <Notice tone="success">
+          {params.get('name') ?? 'The bowler'} was deleted.{' '}
+          <button type="button" className="linklike" onClick={() => undoRemove(justRemoved)}>
+            Undo
+          </button>
+        </Notice>
+      )}
+      <ErrorBanner error={undoError} />
 
       <div className="search">
         <label htmlFor="customer-search" className="search__label">
@@ -183,6 +219,8 @@ export function DashboardPage() {
         {!loading && total > PAGE_SIZE && rows.length >= total && <p className="muted">All {total} shown.</p>}
       </section>
 
+      <RemovedCustomers onRestored={() => setRetry((r) => r + 1)} />
+
       {recent.length > 0 && (
         <section aria-labelledby="recent-heading" className="recent">
           <h2 id="recent-heading" className="section-title">
@@ -201,5 +239,57 @@ export function DashboardPage() {
         </section>
       )}
     </main>
+  );
+}
+
+/** Bowlers deleted from the app, newest first, each with a way back. */
+function RemovedCustomers({ onRestored }: { onRestored: () => void }) {
+  const [rows, setRows] = useState<RemovedCustomer[] | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    listRemovedCustomers()
+      .then(setRows)
+      .catch((e) => setError(toAppError(e)));
+  }, [open]);
+
+  async function restore(id: string) {
+    setError(null);
+    try {
+      await restoreCustomer(id);
+      setRows((r) => r?.filter((x) => x.id !== id) ?? null);
+      onRestored();
+    } catch (e) {
+      setError(toAppError(e));
+    }
+  }
+
+  return (
+    <details className="removed-list" onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
+      <summary>Recently deleted bowlers</summary>
+      <ErrorBanner error={error} />
+      {!rows ? (
+        open && !error && <Spinner />
+      ) : rows.length === 0 ? (
+        <p className="muted">No deleted bowlers.</p>
+      ) : (
+        <ul className="intake-matches">
+          {rows.map((r) => (
+            <li key={r.id}>
+              <span>
+                <strong>{r.name}</strong>
+                {r.phone && <span className="muted"> · {r.phone}</span>}
+                <span className="muted small"> · deleted {formatDateTime(r.removed_at)}</span>
+              </span>
+              <button type="button" className="btn btn--small" onClick={() => restore(r.id)}>
+                Bring back
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </details>
   );
 }

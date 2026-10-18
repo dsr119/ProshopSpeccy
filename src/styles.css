@@ -1686,3 +1686,24 @@ a:focus-visible {
 .balls-list__table td:nth-child(3) {
   white-space: nowrap;
 }
+.btn--danger-outline {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.bowler__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.removed-list {
+  margin-top: 1.5rem;
+}
+.removed-list summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.intake-actions--inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
