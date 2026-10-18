@@ -43,7 +43,13 @@ Deno.serve(async (req) => {
   // The storage address and the key lengths (R2 keys are 32 and 64 characters)
   // reveal nothing secret and help spot a mistyped value.
   if (req.method === 'GET') {
-    return reply(200, { ok: true, bucket, endpoint, keyIdLength: accessKeyId.length, secretLength: secretAccessKey.length });
+    // Writes and removes one small test file, reporting what R2 says if it refuses.
+    const r2 = new AwsClient({ accessKeyId, secretAccessKey, service: 's3', region: Deno.env.get('R2_REGION') || 'auto' });
+    const testUrl = `${endpoint.replace(/\/$/, '')}/${bucket}/_health/check.txt`;
+    const put = await r2.fetch(testUrl, { method: 'PUT', body: 'ok', headers: { 'Content-Type': 'text/plain' } }).catch((e) => e as Error);
+    const write = put instanceof Error ? put.message : put.ok ? 'ok' : `${put.status} ${(await put.text()).slice(0, 300)}`;
+    if (write === 'ok') await r2.fetch(testUrl, { method: 'DELETE' }).catch(() => undefined);
+    return reply(200, { ok: true, bucket, endpoint, keyIdLength: accessKeyId.length, secretLength: secretAccessKey.length, write });
   }
 
   let op: string, keys: string[];
