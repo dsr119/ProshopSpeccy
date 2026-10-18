@@ -247,7 +247,18 @@ function SpanWheels({ slot, editor, label }: { slot: OverlaySlot; editor: SheetE
 }
 
 /** Tap targets over a row of boxes such as Grips / No Grips; tapping the chosen one again clears it. */
-export function ChoiceButtons({ group, value, editor }: { group: ChoiceGroup; value?: string; editor: SheetEditor }) {
+export function ChoiceButtons({
+  group,
+  value,
+  editor,
+  sheetH,
+}: {
+  group: ChoiceGroup;
+  value?: string;
+  editor: SheetEditor;
+  /** Height of the drawn sheet, which is shorter for a no-thumb fit. */
+  sheetH?: number;
+}) {
   function choose(next: string) {
     editor.setField(group.field, { text: next });
     // Without grips there is no grip type or grip size, and the hole is a plain drilled size.
@@ -266,7 +277,7 @@ export function ChoiceButtons({ group, value, editor }: { group: ChoiceGroup; va
           data-control={group.field}
           aria-label={o.label}
           aria-pressed={value === o.value}
-          style={{ left: pctX(o.x), top: pctY(o.y), width: pctX(o.w), height: pctY(o.h) }}
+          style={{ left: pctX(o.x), top: pctY(o.y, sheetH), width: pctX(o.w), height: pctY(o.h, sheetH) }}
           onClick={() => choose(value === o.value ? '' : o.value)}
           onFocus={() => editor.onFocusField?.(group.field)}
         />

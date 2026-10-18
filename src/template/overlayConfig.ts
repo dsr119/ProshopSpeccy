@@ -199,8 +199,11 @@ export const CHOICE_GROUPS: ChoiceGroup[] = [
   },
 ];
 
+/** A no-thumb sheet stops under the finger pitch columns: no spans, span type or thumb. */
+export const NO_THUMB_H = 226;
+
 /** The span type picker drawn between the spans: one lettered circle per type. */
 export const SPAN_PICKER = { y: 214, r: 15, gap: 44, cx: 269, labelY: 244 };
 
 export const pctX = (v: number) => `${(v / TEMPLATE_W) * 100}%`;
-export const pctY = (v: number) => `${(v / TEMPLATE_H) * 100}%`;
+export const pctY = (v: number, h = TEMPLATE_H) => `${(v / h) * 100}%`;

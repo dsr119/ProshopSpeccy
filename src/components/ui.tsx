@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import type { AppError } from '../lib/errors';
+import { useScrollLock } from '../lib/useScrollLock';
 
 export function Spinner({ label = 'Loading…' }: { label?: string }) {
   return (
@@ -43,6 +44,7 @@ interface DialogProps {
 
 export function Dialog({ open, title, children, onClose, actions, wide }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  useScrollLock(open);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;

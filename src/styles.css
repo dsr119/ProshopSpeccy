@@ -1237,6 +1237,7 @@ a:focus-visible {
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  overscroll-behavior: contain;
 }
 .wheel-sheet {
   width: 100%;
@@ -1386,4 +1387,17 @@ a:focus-visible {
   color: var(--value);
   text-align: left;
   cursor: pointer;
+}
+
+/* Digital spec sheet confirmed against the paper one. */
+.confirm-sheet {
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+}
+.confirm-sheet--on {
+  border-color: #3f9b5f;
+  background: var(--ok-bg);
 }
