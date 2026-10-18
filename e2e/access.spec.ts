@@ -64,7 +64,7 @@ test('an expired session sends staff to sign in with a clear message', async ({ 
     for (const k of Object.keys(localStorage)) if (k.startsWith('sb-')) localStorage.removeItem(k);
   });
   // A server rejection of the token triggers the session-expired path.
-  await page.route('**/rest/v1/rpc/search_customers', (route) =>
+  await page.route('**/rest/v1/rpc/list_customers', (route) =>
     route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ code: 'PGRST303', message: 'JWT expired' }) }),
   );
   await page.getByLabel('Search by name or phone').fill('pat');

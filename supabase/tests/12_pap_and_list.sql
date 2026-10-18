@@ -10,7 +10,7 @@ select throws_ok($$select private.normalize_fit_snapshot('{"pap_horizontal": {"e
   'PT422', 'P.A.P horizontal: choose 0 to 8 inches in 1/16 steps', 'horizontal P.A.P is 0 to 8 inches');
 select is(private.normalize_fit_snapshot('{"pap": null}') -> 'pap_horizontal', 'null'::jsonb,
   'older snapshots with an empty P.A.P still save');
-select throws_ok($$select * from public.search_customers('', 25, 0, 'shoe size')$$,
+select throws_ok($$select * from public.list_customers('', 25, 0, 'shoe size')$$,
   'PT422', 'Unknown sort: shoe size', 'only known sorts are accepted');
 
 select * from finish();

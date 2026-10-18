@@ -58,7 +58,7 @@ export async function searchCustomers(
   signal?: AbortSignal,
   sort: CustomerSort = 'last_name',
 ): Promise<CustomerSearchRow[]> {
-  let req = supabase.rpc('search_customers', { p_query: query, p_limit: PAGE_SIZE, p_offset: offset, p_sort: sort });
+  let req = supabase.rpc('list_customers', { p_query: query, p_limit: PAGE_SIZE, p_offset: offset, p_sort: sort });
   if (signal) req = req.abortSignal(signal);
   return unwrap(await req) as CustomerSearchRow[];
 }
