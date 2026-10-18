@@ -195,16 +195,52 @@ test('left-handed no-thumb fits are labelled and keep earlier thumb values', asy
 
   await page.getByRole('link', { name: 'Edit measurements' }).click();
   await page.getByLabel('No-thumb').check();
-  await expect(page.getByText(/show N\/A in no-thumb mode/).first()).toBeVisible();
+  await expect(page.getByText(/thumb and span part of the sheet is hidden/).first()).toBeVisible();
+  await expect(page.locator('#field-thumb_hole')).toHaveCount(0);
+  await expect(page.locator('#field-thumb_system_details')).toHaveCount(0);
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.locator('.fit-identity')).toContainText('Left-handed');
   await expect(page.locator('.fit-identity')).toContainText('No-thumb');
-  await expect(slot(page, 'thumb_hole')).toHaveText('N/A');
-  await expect(slot(page, 'middle_cut_to_cut')).toHaveText('N/A');
-  await expect(page.locator('.sheet__name').first()).toHaveText('MIDDLE');
+  // Without a thumb the sheet stops under the fingers: no thumb, spans or span type.
+  await expect(page.locator('.sheet--no-thumb')).toBeVisible();
+  await expect(slot(page, 'thumb_hole')).toHaveCount(0);
+  await expect(slot(page, 'middle_cut_to_cut')).toHaveCount(0);
+  await expect(page.locator('[data-span-heading]')).toHaveCount(0);
+  await expect(page.locator('.sheet__name')).toHaveText(['MIDDLE', 'RING']);
+  await expect(page.locator('.fit-notes')).not.toContainText('Thumb system');
 
   await page.getByText('All measurements as text').click();
-  await expect(page.locator('.sheet-table tr', { hasText: 'Thumb hole size' })).toContainText('saved, not applicable');
+  await expect(page.locator('.sheet-table')).not.toContainText('Thumb hole size');
+
+  // Switching back to thumb-in brings the saved thumb values back.
+  await page.getByRole('link', { name: 'Edit measurements' }).click();
+  await page.getByLabel('Thumb-in').check();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(slot(page, 'thumb_hole')).toHaveText('1');
+});
+
+test('the digital spec sheet can be confirmed, and new measurements need confirming again', async ({ page }) => {
+  await loginAsStaff(page);
+  const id = await createCustomer(page, unique('Fictional Confirmed'));
+  await page.goto(`/customers/${id}/edit`);
+  await fill(page, 'bridge', '1/4');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/customers/${id}$`));
+
+  const confirm = page.getByRole('switch', { name: /Digital spec sheet confirmed/ });
+  await expect(confirm).not.toBeChecked();
+  await page.locator('.confirm-sheet .switch').click();
+  await expect(confirm).toBeChecked();
+  await expect(page.locator('.confirm-sheet')).toContainText(/ by /);
+  await page.reload();
+  await expect(confirm).toBeChecked();
+
+  await page.getByRole('link', { name: 'Edit measurements' }).click();
+  await fill(page, 'bridge', '3/8');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/customers/${id}$`));
+  await expect(confirm).not.toBeChecked();
+  await expect(page.locator('.confirm-sheet')).toContainText('changed since it was last confirmed');
 });
 
 test('each span type keeps its own spans and the sheet shows the chosen one', async ({ page }) => {

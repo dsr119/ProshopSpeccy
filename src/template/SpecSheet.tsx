@@ -25,6 +25,7 @@ import {
 } from '../measurements/schema';
 import {
   CHOICE_GROUPS,
+  NO_THUMB_H,
   OVERLAY_SLOTS,
   SHEET_ARROWS,
   SHEET_CIRCLES,
@@ -59,12 +60,20 @@ function chosenValue(group: ChoiceGroup, display: DisplayFn): string | undefined
   return d.state === 'value' || d.state === 'invalid' ? group.options.find((o) => o.label === d.text)?.value : undefined;
 }
 
-/** The slots drawn for the current fit: grip boxes only with grips, and the span boxes for the span type shown. */
+/** A no-thumb fit: the thumb and span part of the sheet is left off. */
+function isNoThumb(display: DisplayFn) {
+  return display('span_type').state === 'na';
+}
+
+/** The slots drawn for the current fit: grip boxes only with grips, the span boxes for the span type shown, and no thumb or spans without a thumb. */
 function sheetSlots(display: DisplayFn): OverlaySlot[] {
   const grips = display('finger_grips');
   const hasGrips = grips.state === 'value' && grips.text === GRIPS_LABELS.grips;
   const spanType = shownSpanType(display);
-  return OVERLAY_SLOTS.filter((s) => !s.when || (s.when === 'grips') === hasGrips).map((s) =>
+  const noThumb = isNoThumb(display);
+  return OVERLAY_SLOTS.filter(
+    (s) => (!s.when || (s.when === 'grips') === hasGrips) && !(noThumb && FIELD_BY_KEY[s.field].thumbDependent),
+  ).map((s) =>
     (SPAN_FIELDS as readonly FieldKey[]).includes(s.field)
       ? { ...s, field: spanField(s.field.startsWith('middle') ? 'middle' : 'ring', spanType) }
       : s,
@@ -155,14 +164,17 @@ export function SpecSheet({ display: shown, editor, activeField, caption }: Spec
   const slots = sheetSlots(display);
   const hasGrips = slots.some((s) => s.when === 'grips');
   const choices = CHOICE_GROUPS.filter((g) => !g.when || hasGrips).map((g) => ({ group: g, value: chosenValue(g, display) }));
+  const noThumb = isNoThumb(display);
+  const height = noThumb ? NO_THUMB_H : TEMPLATE_H;
   return (
     <figure className="sheet-figure">
       <div
-        className={`sheet${editor ? ' sheet--interactive' : ''}`}
+        className={`sheet${editor ? ' sheet--interactive' : ''}${noThumb ? ' sheet--no-thumb' : ''}`}
+        style={{ aspectRatio: `${TEMPLATE_W} / ${height}` }}
         role="group"
         aria-label={caption ?? 'Fitting spec sheet. The full list of values is available as text below.'}
       >
-        <SheetArtwork spanType={spanType} grips={hasGrips} choices={choices} />
+        <SheetArtwork spanType={spanType} grips={hasGrips} choices={choices} height={height} />
         {slots.map((slot) => {
           const d = forSlot(slot, display(slot.field));
           const text = slotText(slot, d);
@@ -177,9 +189,9 @@ export function SpecSheet({ display: shown, editor, activeField, caption }: Spec
           ].join(' ');
           const style = {
             left: pctX(slot.x),
-            top: pctY(slot.y),
+            top: pctY(slot.y, height),
             width: pctX(slot.w),
-            height: pctY(slot.h),
+            height: pctY(slot.h, height),
             fontSize: `${((typed ? Math.min(slot.h * 0.6, 16) : size) / TEMPLATE_W) * 100}cqw`,
           };
           const where = slot.dir ? ` (${directionLabel(slot.dir).toLowerCase()})` : '';
@@ -200,14 +212,14 @@ export function SpecSheet({ display: shown, editor, activeField, caption }: Spec
             </span>
           );
         })}
-        {display('span_type').state !== 'na' && (
+        {!noThumb && (
           <SpanTypeButtons
             current={spanType}
             onPick={(t) => (editor ? editor.setField('span_type', { text: t }) : setViewSpan(t))}
             onFocus={() => editor?.onFocusField?.('span_type')}
           />
         )}
-        {editor && choices.map(({ group, value }) => <ChoiceButtons key={group.field} group={group} value={value} editor={editor} />)}
+        {editor && choices.map(({ group, value }) => <ChoiceButtons key={group.field} group={group} value={value} editor={editor} sheetH={height} />)}
       </div>
       <SheetFooter display={display} editor={editor} activeField={activeField} />
     </figure>
@@ -309,40 +321,45 @@ function SheetArtwork({
   spanType,
   grips,
   choices,
+  height,
 }: {
   spanType: SpanType;
   grips: boolean;
   choices: Array<{ group: ChoiceGroup; value?: string }>;
+  /** Shorter than the full sheet for a no-thumb fit; anything below it is left off. */
+  height: number;
 }) {
   const types = SPAN_TYPE_ORDER;
   const first = SPAN_PICKER.cx - ((types.length - 1) * SPAN_PICKER.gap) / 2;
+  const full = height === TEMPLATE_H;
+  const circles = SHEET_CIRCLES.filter((c) => c.cy + c.r <= height);
   return (
-    <svg className="sheet__art" viewBox={`0 0 ${TEMPLATE_W} ${TEMPLATE_H}`} aria-hidden="true">
+    <svg className="sheet__art" viewBox={`0 0 ${TEMPLATE_W} ${height}`} aria-hidden="true">
       <g className="sheet__ink">
-        {SHEET_CIRCLES.map((c) => (
+        {circles.map((c) => (
           <g key={c.name}>
             <circle cx={c.cx} cy={c.cy} r={c.r} fill="none" />
             {(!c.finger || grips) && <line x1={c.cx - c.r} x2={c.cx + c.r} y1={c.cy} y2={c.cy} />}
           </g>
         ))}
-        {SHEET_ARROWS.map((a, i) => (
+        {SHEET_ARROWS.filter((a) => Math.max(a.y1, a.y2) <= height).map((a, i) => (
           <g key={i}>
             <line x1={a.x1} y1={a.y1} x2={a.x2} y2={a.y2} />
             {(a.heads === 'end' || a.heads === 'both') && <polygon points={head(a.x1, a.y1, a.x2, a.y2)} />}
             {(a.heads === 'start' || a.heads === 'both') && <polygon points={head(a.x2, a.y2, a.x1, a.y1)} />}
           </g>
         ))}
-        {OVERLAY_SLOTS.filter((s) => s.framed).map((s) => (
+        {OVERLAY_SLOTS.filter((s) => s.framed && s.y + s.h <= height).map((s) => (
           <rect key={`${s.field}:${s.dir ?? ''}`} x={s.x} y={s.y} width={s.w} height={s.h} rx={2} fill="#fff" />
         ))}
       </g>
       <g className="sheet__dots">
-        {SHEET_DOTTED.map((l, i) => (
+        {SHEET_DOTTED.filter((l) => l.y <= height).map((l, i) => (
           <line key={i} x1={l.x1} x2={l.x2} y1={l.y} y2={l.y} />
         ))}
       </g>
       <g className="sheet__captions">
-        {SHEET_CIRCLES.map((c) => (
+        {circles.map((c) => (
           <g key={c.name}>
             <text x={c.cx} y={c.cy - c.r + 13} className="sheet__name">
               {c.name.toUpperCase()}
@@ -367,12 +384,13 @@ function SheetArtwork({
             </g>
           )),
         )}
-        {SHEET_LABELS.map((l, i) => (
+        {SHEET_LABELS.filter((l) => l.y <= height).map((l, i) => (
           <text key={i} x={l.x} y={l.y} textAnchor={l.anchor ?? 'middle'}>
             {l.text}
           </text>
         ))}
       </g>
+      {full && (
       <g className="sheet__picker">
         {types.map((t, i) => {
           const on = t === spanType;
@@ -390,6 +408,7 @@ function SheetArtwork({
           {SPAN_TYPE_LABELS[spanType]}
         </text>
       </g>
+      )}
     </svg>
   );
 }
@@ -400,12 +419,9 @@ const GROUP_ORDER: FieldGroup[] = ['identity', 'fingers', 'middle', 'ring', 'spa
 export function SheetTable({ snapshot }: { snapshot: Snapshot | null }) {
   return (
     <div className="sheet-table">
-      {GROUP_ORDER.map((group) => (
+      {GROUP_ORDER.filter((g) => !(snapshot?.thumb_mode === 'no_thumb' && (g === 'thumb' || g === 'spans'))).map((group) => (
         <table key={group}>
-          <caption>
-            {GROUP_LABELS[group]}
-            {(group === 'thumb' || group === 'spans') && snapshot?.thumb_mode === 'no_thumb' ? ' (not applicable: no-thumb)' : ''}
-          </caption>
+          <caption>{GROUP_LABELS[group]}</caption>
           <tbody>
             {FIELDS.filter((f) => f.group === group).map((f) => {
               const v = formatValue(f.key, snapshot?.[f.key] ?? null, { unit: true });

@@ -270,7 +270,7 @@ export function EditFitPage() {
             activeField={activeField}
             caption="Spec sheet. Tap a box to type or scroll its value."
           />
-          {noThumb && <p className="muted small">Thumb and span boxes show N/A in no-thumb mode; their saved values are kept.</p>}
+          {noThumb && <p className="muted small">No-thumb: the thumb and span part of the sheet is hidden. Values saved earlier are kept.</p>}
           {Object.keys(visibleErrors).length > 0 && (
             <ul className="sheet-errors" role="alert">
               {FIELDS.filter((f) => visibleErrors[f.key]).map((f) => (
@@ -288,7 +288,7 @@ export function EditFitPage() {
         <div className="editor__form">
           <fieldset className="fieldset">
             <legend>{GROUP_LABELS.details}</legend>
-            {FIELDS.filter((f) => f.group === 'details').map((f) => (
+            {FIELDS.filter((f) => f.group === 'details' && !(noThumb && f.key === 'thumb_system_details')).map((f) => (
               <FieldControl
                 key={f.key}
                 def={f}
@@ -302,7 +302,7 @@ export function EditFitPage() {
 
           <details className="fieldset more-measurements" open={OFF_SHEET.some((k) => !!visibleErrors[k])}>
             <summary>More measurements</summary>
-            {FIELDS.filter((f) => OFF_SHEET.includes(f.key)).map((f) => (
+            {FIELDS.filter((f) => OFF_SHEET.includes(f.key) && !(noThumb && f.thumbDependent)).map((f) => (
               <FieldControl
                 key={f.key}
                 def={f}

@@ -8,7 +8,7 @@ import { useAsync } from '../lib/useAsync';
 import { Dialog, ErrorBanner, Notice, Spinner } from '../components/ui';
 import { HAND_LABELS, THUMB_MODE_LABELS, type Hand, type Snapshot, type ThumbMode } from '../measurements/schema';
 import { SheetTable, SpecSheet, displayFromSnapshot } from '../template/SpecSheet';
-import { getCurrentFit } from '../fits/api';
+import { getCurrentFit, isConfirmed, setFitConfirmed, type Fit } from '../fits/api';
 import { listPhotos } from '../photos/api';
 import { PhotosPanel } from '../photos/PhotosPage';
 import { BowlerCard } from './BowlerCard';
@@ -28,9 +28,10 @@ export function FitIdentity({ snapshot }: { snapshot: Snapshot | null }) {
 }
 
 export function FitNotes({ snapshot }: { snapshot: Snapshot | null }) {
+  const noThumb = snapshot?.thumb_mode === 'no_thumb';
   const items: Array<[string, unknown]> = [
     ['Finger inserts', snapshot?.finger_insert_details],
-    ['Thumb system', snapshot?.thumb_system_details],
+    ...(noThumb ? [] : ([['Thumb system', snapshot?.thumb_system_details]] as Array<[string, unknown]>)),
     ['Fitting notes', snapshot?.fitting_notes],
   ];
   return (
@@ -42,6 +43,48 @@ export function FitNotes({ snapshot }: { snapshot: Snapshot | null }) {
         </div>
       ))}
     </dl>
+  );
+}
+
+/** The switch for marking the digital sheet as checked against the paper one. Saving new measurements clears it. */
+function ConfirmSheet({ fit, onChange }: { fit: Fit; onChange: (fit: Fit) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<AppError | null>(null);
+  const confirmed = isConfirmed(fit);
+  const changedSince = !confirmed && !!fit.confirmed_revision_id;
+
+  async function toggle(next: boolean) {
+    if (!fit.current_revision_id) return;
+    setBusy(true);
+    setError(null);
+    try {
+      onChange({ ...fit, ...(await setFitConfirmed(fit.id, fit.current_revision_id, next)) });
+    } catch (e) {
+      setError(toAppError(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className={`confirm-sheet no-print${confirmed ? ' confirm-sheet--on' : ''}`}>
+      <ErrorBanner error={error} />
+      <label className="switch">
+        <input type="checkbox" role="switch" checked={confirmed} disabled={busy} onChange={(e) => toggle(e.target.checked)} />
+        <span className="switch__track" aria-hidden="true" />
+        <span>
+          Digital spec sheet confirmed
+          {confirmed && fit.confirmed_at && (
+            <span className="muted small">
+              {' '}
+              · {formatDateTime(fit.confirmed_at)}
+              {fit.confirmed_by ? ` by ${fit.confirmed_by}` : ''}
+            </span>
+          )}
+          {changedSince && <span className="muted small"> · measurements changed since it was last confirmed</span>}
+        </span>
+      </label>
+    </div>
   );
 }
 
@@ -164,6 +207,9 @@ export function CustomerPage() {
             <Spinner />
           ) : revision ? (
             <>
+              {fit.data?.fit && (
+                <ConfirmSheet fit={fit.data.fit} onChange={(next) => fit.setData({ fit: next, revision })} />
+              )}
               <FitIdentity snapshot={snapshot} />
               <SpecSheet display={displayFromSnapshot(snapshot)} />
               <button type="button" className="btn btn--small no-print" onClick={() => setEnlarged(true)}>

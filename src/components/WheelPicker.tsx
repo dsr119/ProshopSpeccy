@@ -4,6 +4,7 @@
 // and the arrow keys move a focused wheel.
 
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useScrollLock } from '../lib/useScrollLock';
 
 const ITEM_H = 44;
 const VISIBLE = 5;
@@ -31,6 +32,7 @@ export function WheelPicker({ title, columns, initial, onDone, onClear, onClose,
   const [picked, setPicked] = useState(() =>
     columns.map((c, i) => Math.max(0, c.options.findIndex((o) => o.value === initial[i]))),
   );
+  useScrollLock();
 
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => e.key === 'Escape' && onClose();

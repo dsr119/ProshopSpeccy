@@ -10,6 +10,16 @@ export interface Fit {
   current_revision_id: string | null;
   lock_version: number;
   created_at: string;
+  /** The revision someone checked against the paper sheet; confirmed only while it is still the current one. */
+  confirmed_revision_id: string | null;
+  confirmed_at: string | null;
+  confirmed_by: string | null;
+}
+
+export type FitConfirmation = Pick<Fit, 'confirmed_revision_id' | 'confirmed_at' | 'confirmed_by'>;
+
+export function isConfirmed(fit: Fit | null): boolean {
+  return !!fit?.current_revision_id && fit.confirmed_revision_id === fit.current_revision_id;
 }
 
 export interface FitRevision {
@@ -107,6 +117,13 @@ export async function restoreRevision(revisionId: string, expectedLockVersion: n
   });
   if (res.error) throw toAppError(res.error);
   return res.data as SaveResult;
+}
+
+/** Marks the revision on screen as checked against the paper sheet, or clears the mark. */
+export async function setFitConfirmed(fitId: string, revisionId: string, confirmed: boolean): Promise<FitConfirmation> {
+  const res = await supabase.rpc('set_fit_confirmed', { p_fit_id: fitId, p_revision_id: revisionId, p_confirmed: confirmed });
+  if (res.error) throw toAppError(res.error);
+  return res.data as FitConfirmation;
 }
 
 /** Names already used for "Specs written by" in this shop, most recent first. */
