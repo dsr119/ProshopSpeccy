@@ -75,3 +75,9 @@ bucket and the `intake_items` queue; `claim_next_intake` hands out the oldest wa
 back after an hour), `release_intake` puts one back or sets it aside as unreadable, and `complete_intake` records the
 customer and the copy of the photo saved to their Photos as a spec sheet. Queue rows change only through those
 functions.
+
+A sheet can also have a photo of its back (`back_path`, set with `set_intake_back`), since layouts are sometimes drawn
+there. Photos are shrunk on the device before upload (`src/lib/shrinkPhoto.ts`: longest edge 2000px, JPEG quality
+0.8, original kept when that isn't smaller), so a typical 2–4MB phone photo lands at a few hundred KB. When a sheet is
+finished, front and back are copied to the bowler's Photos and the queue copies are deleted, so each photo is stored
+once. Even so, about 3000 sheets is more than the Supabase free plan's 1GB of storage is likely to hold.

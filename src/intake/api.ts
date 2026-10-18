@@ -1,6 +1,7 @@
 import { INTAKE_BUCKET, supabase } from '../lib/supabase';
 import { AppError, toAppError, unwrap } from '../lib/errors';
 import { ACCEPTED_TYPES, checkPhotoFile, uploadPhoto } from '../photos/api';
+import { shrinkPhoto } from '../lib/shrinkPhoto';
 
 export type IntakeStatus = 'waiting' | 'working' | 'done' | 'unreadable';
 
@@ -16,6 +17,8 @@ export interface IntakeItem {
   claimed_by: string | null;
   claimed_at: string | null;
   note: string | null;
+  /** The back of the sheet, when something is written there. */
+  back_path: string | null;
   customer_id: string | null;
   photo_id: string | null;
   done_by: string | null;
@@ -51,14 +54,21 @@ export async function getItem(id: string): Promise<IntakeItem> {
   return unwrap(await supabase.from('intake_items').select('*').eq('id', id).single()) as IntakeItem;
 }
 
-/** Puts one photo of a paper sheet in the queue. */
-export async function addToQueue(shopId: string, file: File, addedBy: string): Promise<IntakeItem> {
+/** Shrinks a photo and stores it in the queue's bucket; returns its path and the stored size. */
+async function storePhoto(path: (ext: string) => string, original: File): Promise<{ path: string; file: File }> {
+  const file = await shrinkPhoto(original);
   const problem = checkPhotoFile(file);
   if (problem) throw new AppError('validation', problem);
-  const id = crypto.randomUUID();
-  const path = `${shopId}/${id}/original.${ACCEPTED_TYPES[file.type]}`;
-  const up = await supabase.storage.from(INTAKE_BUCKET).upload(path, file, { contentType: file.type, upsert: false });
+  const full = path(ACCEPTED_TYPES[file.type]);
+  const up = await supabase.storage.from(INTAKE_BUCKET).upload(full, file, { contentType: file.type, upsert: false });
   if (up.error) throw toAppError(up.error);
+  return { path: full, file };
+}
+
+/** Puts one photo of a paper sheet (its front) in the queue. */
+export async function addToQueue(shopId: string, original: File, addedBy: string): Promise<IntakeItem> {
+  const id = crypto.randomUUID();
+  const { path, file } = await storePhoto((ext) => `${shopId}/${id}/original.${ext}`, original);
   const row = await supabase
     .from('intake_items')
     .insert({ id, shop_id: shopId, object_path: path, mime_type: file.type, size_bytes: file.size, added_by: addedBy })
@@ -77,6 +87,17 @@ export async function intakePhotoUrl(path: string): Promise<string> {
   return data.signedUrl;
 }
 
+/** Adds the back of a sheet that is already in the queue. */
+export async function addBack(item: IntakeItem, original: File): Promise<IntakeItem> {
+  const { path } = await storePhoto((ext) => `${item.shop_id}/${item.id}/back-${Date.now()}.${ext}`, original);
+  const res = await supabase.rpc('set_intake_back', { p_id: item.id, p_path: path });
+  if (res.error) {
+    await supabase.storage.from(INTAKE_BUCKET).remove([path]).catch(() => undefined);
+    throw toAppError(res.error);
+  }
+  return res.data as IntakeItem;
+}
+
 /** The oldest sheet nobody is working on, now marked as yours; null when the queue is empty. */
 export async function claimNext(name: string): Promise<IntakeItem | null> {
   const res = await supabase.rpc('claim_next_intake', { p_name: name });
@@ -91,38 +112,47 @@ export async function releaseItem(id: string, unreadable = false, note: string |
   return res.data as IntakeItem;
 }
 
+/** Photos already copied to the bowler, so a retry doesn't add them twice. */
+export interface CopiedPhotos {
+  front?: string;
+  back?: string;
+}
+
+async function copyToBowler(item: IntakeItem, path: string, customerId: string, revisionId: string, side: 'front' | 'back') {
+  const dl = await supabase.storage.from(INTAKE_BUCKET).download(path);
+  if (dl.error) throw toAppError(dl.error);
+  const ext = path.split('.').pop() ?? 'jpg';
+  const photo = await uploadPhoto({
+    shopId: item.shop_id,
+    customerId,
+    file: new File([dl.data], `paper-spec-sheet-${side}.${ext}`, { type: dl.data.type || item.mime_type }),
+    rotation: 0,
+    caption: `Paper spec sheet, ${side} (from the intake queue)`,
+    kind: 'spec_sheet',
+    revisionId,
+  });
+  return photo.id;
+}
+
 /**
- * Sends a typed-in sheet to the app: its photo is copied into the bowler's
- * Photos as a spec sheet, and the queue entry is marked done. Pass the photo id
- * from an earlier attempt so a retry doesn't add the photo twice.
+ * Sends a typed-in sheet to the app: its front (and back) are copied into the
+ * bowler's Photos as spec sheets and the queue entry is marked done. The queue's
+ * own copies are then removed, so each photo is stored once.
  */
 export async function finishItem(
   item: IntakeItem,
   customerId: string,
   revisionId: string,
   name: string,
-  copiedPhotoId: string | null,
-): Promise<{ item: IntakeItem; photoId: string }> {
-  let photoId = copiedPhotoId;
-  if (!photoId) {
-    const dl = await supabase.storage.from(INTAKE_BUCKET).download(item.object_path);
-    if (dl.error) throw toAppError(dl.error);
-    const ext = item.object_path.split('.').pop() ?? 'jpg';
-    const file = new File([dl.data], `paper-spec-sheet.${ext}`, { type: item.mime_type });
-    const photo = await uploadPhoto({
-      shopId: item.shop_id,
-      customerId,
-      file,
-      rotation: 0,
-      caption: 'Paper spec sheet (from the intake queue)',
-      kind: 'spec_sheet',
-      revisionId,
-    });
-    photoId = photo.id;
-  }
-  const res = await supabase.rpc('complete_intake', { p_id: item.id, p_customer_id: customerId, p_photo_id: photoId, p_name: name });
+  copied: CopiedPhotos,
+): Promise<IntakeItem> {
+  copied.front ??= await copyToBowler(item, item.object_path, customerId, revisionId, 'front');
+  if (item.back_path) copied.back ??= await copyToBowler(item, item.back_path, customerId, revisionId, 'back');
+  const res = await supabase.rpc('complete_intake', { p_id: item.id, p_customer_id: customerId, p_photo_id: copied.front, p_name: name });
   if (res.error) throw toAppError(res.error);
-  return { item: res.data as IntakeItem, photoId };
+  const paths = [item.object_path, item.back_path].filter((p): p is string => !!p);
+  await supabase.storage.from(INTAKE_BUCKET).remove(paths).catch(() => undefined);
+  return res.data as IntakeItem;
 }
 
 const NAME_KEY = 'proshop:intake:name';

@@ -1477,6 +1477,25 @@ a:focus-visible {
 .intake-progress {
   font-weight: 600;
 }
+.intake-uploads__done {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.intake-next {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  background: var(--panel);
+  border: 2px solid var(--accent, #2b6cb0);
+  border-radius: var(--radius);
+}
+.intake-next p {
+  margin: 0;
+}
+.intake-next .intake-actions {
+  margin-bottom: 0;
+}
 .intake-step {
   margin: 0.5rem 0;
 }
@@ -1504,8 +1523,19 @@ a:focus-visible {
 }
 .intake-photo__tools {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.4rem;
   margin-bottom: 0.4rem;
+}
+.intake-photo__sides {
+  display: flex;
+  gap: 0.25rem;
+  margin-right: 0.5rem;
+}
+.intake-photo__sides .btn[aria-pressed='true'] {
+  background: #fff;
+  color: #20262f;
+  font-weight: 700;
 }
 .intake-photo__frame {
   overflow: auto;
