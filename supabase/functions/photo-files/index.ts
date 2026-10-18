@@ -26,16 +26,25 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST' && req.method !== 'GET') return reply(405, { error: 'Use POST' });
 
-  const accessKeyId = Deno.env.get('R2_ACCESS_KEY_ID');
-  const secretAccessKey = Deno.env.get('R2_SECRET_ACCESS_KEY');
-  const account = Deno.env.get('R2_ACCOUNT_ID');
+  const accessKeyId = Deno.env.get('R2_ACCESS_KEY_ID')?.trim();
+  const secretAccessKey = Deno.env.get('R2_SECRET_ACCESS_KEY')?.trim();
+  // Accept the account ID on its own or pasted as the whole S3 address.
+  const account = (Deno.env.get('R2_ACCOUNT_ID') ?? '')
+    .trim()
+    .replace(/^https?:\/\//, '')
+    .replace(/\.r2\.cloudflarestorage\.com.*$/, '')
+    .replace(/\/.*$/, '');
   const endpoint = Deno.env.get('R2_ENDPOINT') || (account ? `https://${account}.r2.cloudflarestorage.com` : '');
   const bucket = Deno.env.get('R2_BUCKET') || 'proshop-photos';
   if (!accessKeyId || !secretAccessKey || !endpoint) {
     return reply(503, { error: "Photo storage isn't set up yet." });
   }
   // Opening the link in a browser shows whether the secrets are in place.
-  if (req.method === 'GET') return reply(200, { ok: true, bucket });
+  // The storage address and the key lengths (R2 keys are 32 and 64 characters)
+  // reveal nothing secret and help spot a mistyped value.
+  if (req.method === 'GET') {
+    return reply(200, { ok: true, bucket, endpoint, keyIdLength: accessKeyId.length, secretLength: secretAccessKey.length });
+  }
 
   let op: string, keys: string[];
   try {
