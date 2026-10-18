@@ -1,6 +1,6 @@
 -- The intake queue: photos of paper sheets taken one at a time and finished into the app.
 begin;
-select plan(12);
+select plan(15);
 
 create temp table t_result (label text primary key, value jsonb);
 grant all on t_result to anon;
@@ -9,7 +9,8 @@ update public.shops set open_access = true where id = '00000000-0000-4000-8000-0
 -- Stand-ins for two uploaded photos.
 insert into storage.objects (bucket_id, name, metadata) values
   ('intake-photos', '00000000-0000-4000-8000-00000000005a/00000000-0000-4000-8000-0000000001e1/original.jpg', '{"mimetype": "image/jpeg", "size": 1000}'),
-  ('intake-photos', '00000000-0000-4000-8000-00000000005a/00000000-0000-4000-8000-0000000001e2/original.jpg', '{"mimetype": "image/jpeg", "size": 2000}');
+  ('intake-photos', '00000000-0000-4000-8000-00000000005a/00000000-0000-4000-8000-0000000001e2/original.jpg', '{"mimetype": "image/jpeg", "size": 2000}'),
+  ('intake-photos', '00000000-0000-4000-8000-00000000005a/00000000-0000-4000-8000-0000000001e1/back.jpg', '{"mimetype": "image/jpeg", "size": 900}');
 
 set local role anon;
 select set_config('request.jwt.claims', '{"role": "anon"}', true);
@@ -24,6 +25,14 @@ insert into public.intake_items (shop_id, object_path, mime_type, size_bytes) va
   ('00000000-0000-4000-8000-00000000005a', '00000000-0000-4000-8000-00000000005a/00000000-0000-4000-8000-0000000001e2/original.jpg', 'image/jpeg', 1);
 select is((select status from public.intake_items where added_by = 'Pat'), 'waiting', 'new photos always start in the queue');
 select is((select size_bytes from public.intake_items where added_by = 'Pat'), 1000::bigint, 'size comes from the stored file');
+
+select throws_ok(format($$select public.set_intake_back(%L, 'elsewhere/back.jpg')$$,
+  (select id from public.intake_items where added_by = 'Pat')), 'PT422', 'Uploaded file not found', 'the back must be an uploaded photo');
+select is((public.set_intake_back((select id from public.intake_items where added_by = 'Pat'),
+  '00000000-0000-4000-8000-00000000005a/00000000-0000-4000-8000-0000000001e1/back.jpg')).back_path,
+  '00000000-0000-4000-8000-00000000005a/00000000-0000-4000-8000-0000000001e1/back.jpg', 'a sheet can have a back');
+select ok(private.intake_has_item('00000000-0000-4000-8000-00000000005a/00000000-0000-4000-8000-0000000001e1/back.jpg'),
+  'the back counts as queued, so it is kept');
 
 insert into t_result values ('a', to_jsonb(public.claim_next_intake('Sam')));
 insert into t_result values ('b', to_jsonb(public.claim_next_intake('Lee')));

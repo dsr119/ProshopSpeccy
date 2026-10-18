@@ -15,7 +15,7 @@ import {
   type CustomerInput,
   type CustomerSearchRow,
 } from '../customers/api';
-import { claimNext, finishItem, getItem, intakePhotoUrl, releaseItem, type IntakeItem } from './api';
+import { claimNext, finishItem, getItem, intakePhotoUrl, releaseItem, type CopiedPhotos, type IntakeItem } from './api';
 import { appCustomerUrl } from './IntakeHome';
 
 const bowlerKey = (itemId: string) => `proshop:intake:bowler:${itemId}`;
@@ -46,11 +46,11 @@ export function SheetPage() {
   const [customerId, setCustomerId] = useState<string | null>(() => readBowler(itemId));
   const [error, setError] = useState<AppError | null>(null);
   const [settingAside, setSettingAside] = useState(false);
-  const copiedPhoto = useRef<string | null>(null);
+  const copied = useRef<CopiedPhotos>({});
 
   useEffect(() => {
     setCustomerId(readBowler(itemId));
-    copiedPhoto.current = null;
+    copied.current = {};
   }, [itemId]);
 
   function chooseBowler(id: string | null) {
@@ -149,8 +149,7 @@ export function SheetPage() {
                 saveLabel: 'Save and send to the app',
                 onCancel: () => chooseBowler(null),
                 onSaved: async (result) => {
-                  const done = await finishItem(it, customerId, result.revision_id, name, copiedPhoto.current);
-                  copiedPhoto.current = done.photoId;
+                  await finishItem(it, customerId, result.revision_id, name, copied.current);
                   keepBowler(itemId, null);
                   const next = await claimNext(name).catch(() => null);
                   navigate(next ? `/sheet/${next.id}` : '/?finished=1&empty=1');
@@ -176,14 +175,25 @@ export function SheetPage() {
   );
 }
 
-/** The paper sheet, zoomable and turnable, kept in view while typing. */
+/** The paper sheet, zoomable and turnable, kept in view while typing; front and back when it has both. */
 function SheetPhoto({ item }: { item: IntakeItem }) {
-  const url = useAsync(() => intakePhotoUrl(item.object_path), [item.object_path]);
+  const [side, setSide] = useState<'front' | 'back'>('front');
+  const path = side === 'back' && item.back_path ? item.back_path : item.object_path;
+  const url = useAsync(() => intakePhotoUrl(item, path), [path]);
   const [zoom, setZoom] = useState(1);
   const [turn, setTurn] = useState(0);
   return (
     <aside className="intake-photo" aria-label="Paper spec sheet">
       <div className="intake-photo__tools">
+        {item.back_path && (
+          <div className="intake-photo__sides" role="group" aria-label="Side">
+            {(['front', 'back'] as const).map((s) => (
+              <button key={s} type="button" className="btn btn--small" aria-pressed={side === s} onClick={() => setSide(s)}>
+                {s === 'front' ? 'Front' : 'Back'}
+              </button>
+            ))}
+          </div>
+        )}
         <button type="button" className="btn btn--small" aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(1, z - 0.5))}>
           −
         </button>

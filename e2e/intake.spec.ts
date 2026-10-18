@@ -4,7 +4,7 @@ import { fillField, loginAsStaff, slot, unique } from './helpers';
 
 const SHEET = { mimeType: 'image/png', buffer: readFileSync('public/assets/specSheet550wide.png') };
 
-test('paper sheets go into the queue, get typed in, and land in the app with their photo', async ({ page }) => {
+test('paper sheets go into the queue, get typed in, and land in the app with their photos, front and back', async ({ page }) => {
   await loginAsStaff(page);
   // The app itself has no way into the queue.
   await expect(page.locator('a[href*="intake"]')).toHaveCount(0);
@@ -21,7 +21,13 @@ test('paper sheets go into the queue, get typed in, and land in the app with the
     { name: 'paper-1.png', ...SHEET },
     { name: 'paper-2.png', ...SHEET },
   ]);
-  await expect(page.getByRole('status')).toHaveText('2 added to the queue');
+  await expect(page.getByRole('status')).toHaveText('2 sheets added to the queue');
+  // The first sheet has something written on the back.
+  const chooser = page.waitForEvent('filechooser');
+  await page.locator('.intake-uploads li', { hasText: 'paper-1.png' }).getByRole('button', { name: 'Add the back' }).click();
+  await (await chooser).setFiles({ name: 'paper-1-back.png', ...SHEET });
+  await expect(page.getByRole('status')).toHaveText('2 sheets added to the queue (1 with a back)');
+  await expect(page.locator('.intake-uploads li', { hasText: 'paper-1.png' })).toContainText('Front and back in the queue');
   await page.getByRole('link', { name: '← Queue' }).click();
   await expect(page.locator('[data-count="waiting"] dd')).toHaveText(String(waitingBefore + 2));
 
@@ -35,6 +41,9 @@ test('paper sheets go into the queue, get typed in, and land in the app with the
 
   await page.getByRole('button', { name: 'Type in the next sheet' }).click();
   await expect(page.locator('.intake-photo img')).toBeVisible();
+  const frontSrc = await page.locator('.intake-photo img').getAttribute('src');
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(page.locator('.intake-photo img')).not.toHaveAttribute('src', frontSrc!);
   const bowler = unique('Fictional Paper Bowler');
   await page.getByRole('button', { name: 'Add a new bowler' }).click();
   await page.getByLabel(/^Name/).fill(bowler);
@@ -56,5 +65,5 @@ test('paper sheets go into the queue, get typed in, and land in the app with the
   await page.goto(href!);
   await expect(page.getByRole('heading', { level: 1, name: bowler })).toBeVisible();
   await expect(slot(page, 'bridge')).toHaveText('1/4');
-  await expect(page.getByRole('button', { name: 'Photos (1)' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Photos (2)' })).toBeVisible();
 });

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
-import { USERS, apiClient, createCustomer, loginAsStaff, unique } from './helpers';
+import { PUBLIC_KEY, SUPABASE_URL, USERS, apiClient, createCustomer, loginAsStaff, unique } from './helpers';
 
 // Any image works as a stand-in for a photographed paper sheet.
 const SAMPLE = { name: 'fictional-sheet.png', mimeType: 'image/png', buffer: readFileSync('public/assets/specSheet550wide.png') };
@@ -32,8 +32,8 @@ test('a customer can have an uploaded sheet photo before any digital specs', asy
   await expect(page.getByAltText('Original sheet: 2019 paper sheet')).toBeVisible();
   // Signed, expiring URL rather than a public link.
   const src = await page.getByAltText('Original sheet: 2019 paper sheet').getAttribute('src');
-  expect(src).toContain('/object/sign/spec-photos/');
-  expect(src).toContain('token=');
+  // Supabase Storage or Cloudflare R2 (VITE_PHOTO_STORE=r2), both signed.
+  expect(src).toMatch(/\/object\/sign\/spec-photos\/.*token=|\/proshop-photos\/spec-photos\/.*X-Amz-Signature=/);
 
   // A spec sheet photo can be marked as confirmed against the digital sheet.
   const confirmed = page.getByRole('switch', { name: /Digital spec sheet confirmed/ });
@@ -66,14 +66,28 @@ test('a customer can have an uploaded sheet photo before any digital specs', asy
   await expect(page.locator('.results')).toContainText('1 ball');
   await expect(page.locator('.results')).toContainText('No digital specs');
 
-  // Recorded files cannot be removed through the Storage API, and nonmembers cannot read them.
+  // Recorded files cannot be removed, and nonmembers cannot read them.
   const staff = await apiClient(USERS.staff);
-  const { data: rows } = await staff.from('spec_photos').select('object_path').eq('customer_id', id);
+  const outsider = await apiClient(USERS.outsider);
+  const { data: rows } = await staff.from('spec_photos').select('object_path, store').eq('customer_id', id);
   const path = rows![0].object_path as string;
+  if (rows![0].store === 'r2') {
+    const filesCall = async (client: typeof staff, op: string) => {
+      const token = (await client.auth.getSession()).data.session?.access_token ?? PUBLIC_KEY;
+      return fetch(process.env.VITE_PHOTO_FILES_URL ?? `${SUPABASE_URL}/functions/v1/photo-files`, {
+        method: 'POST',
+        headers: { apikey: PUBLIC_KEY, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ op, keys: [path] }),
+      });
+    };
+    expect((await filesCall(staff, 'delete')).status).toBe(403);
+    expect((await filesCall(staff, 'get')).status).toBe(200);
+    expect((await filesCall(outsider, 'get')).status).toBe(403);
+    return;
+  }
   await staff.storage.from('spec-photos').remove([path]);
   const stillThere = await staff.storage.from('spec-photos').createSignedUrl(path, 60);
   expect(stillThere.error).toBeNull();
-  const outsider = await apiClient(USERS.outsider);
   const denied = await outsider.storage.from('spec-photos').createSignedUrl(path, 60);
   expect(denied.data).toBeNull();
   const download = await outsider.storage.from('spec-photos').download(path);

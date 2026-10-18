@@ -4,7 +4,7 @@ import { toAppError, type AppError } from '../lib/errors';
 import { formatDateTime } from '../lib/format';
 import { ErrorBanner, Notice } from '../components/ui';
 import type { Customer } from '../customers/api';
-import { PHOTO_KIND_LABELS, checkPhotoFile, signedUrls, updatePhoto, uploadPhoto, type PhotoKind, type SpecPhoto } from './api';
+import { PHOTO_KIND_LABELS, checkPhotoFile, photoUrls, updatePhoto, uploadPhoto, type PhotoKind, type SpecPhoto } from './api';
 import { PhotoViewer } from './PhotoViewer';
 
 const ACCEPT = 'image/jpeg,image/png,image/webp,.heic,.heif';
@@ -39,7 +39,7 @@ export function PhotosPanel({
 
   useEffect(() => {
     setSelected((s) => (s && photos.find((p) => p.id === s.id)) || photos[0] || null);
-    signedUrls(photos.map((p) => p.object_path))
+    photoUrls(photos)
       .then(setUrls)
       .catch(() => setUrls({}));
   }, [photos]);
