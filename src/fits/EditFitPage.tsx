@@ -26,12 +26,16 @@ import { BowlerCard } from '../customers/BowlerCard';
 import { EditCustomerDialog } from '../customers/CustomerPage';
 import { getCurrentFit, listSpecAuthors, parseConflict, saveFit, type ConflictInfo, type CurrentFit, type SaveResult } from './api';
 import { ChangeTable } from './HistoryPage';
+import { ballToDraft, ballsEqual, listBalls, saveBalls, validateBalls, type BallDraft } from '../balls/api';
+import { BallsEditor } from '../balls/BallsSection';
 
 interface StoredDraft {
   draft: Draft;
   baseLock: number;
   changeNote: string;
   savedAt: string;
+  /** The bowler's balls as edited; missing in drafts kept before balls existed. */
+  balls?: BallDraft[];
 }
 
 const draftKey = (userId: string, customerId: string) => `proshop:draft:${userId}:${customerId}`;
@@ -77,6 +81,8 @@ export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
   const [activeField, setActiveField] = useState<FieldKey | null>(null);
   const [editingBowler, setEditingBowler] = useState(false);
   const [authors, setAuthors] = useState<string[]>([]);
+  const [balls, setBalls] = useState<BallDraft[]>([]);
+  const [baseBalls, setBaseBalls] = useState<BallDraft[]>([]);
 
   useEffect(() => {
     listSpecAuthors()
@@ -89,19 +95,22 @@ export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
   const load = useCallback(async () => {
     setLoadError(null);
     try {
-      const [c, f] = await Promise.all([getCustomer(customerId), getCurrentFit(customerId)]);
+      const [c, f, b] = await Promise.all([getCustomer(customerId), getCurrentFit(customerId), listBalls(customerId)]);
       setCustomer(c);
       setBase(f);
       const saved = snapshotToDraft(f.revision?.snapshot ?? null);
       setBaseDraft(saved);
+      const savedBalls = b.map(ballToDraft);
+      setBaseBalls(savedBalls);
       const stored = readStoredDraft(userId, customerId);
+      setBalls(stored?.balls ?? savedBalls);
       if (stored) {
         // Unsaved work from before a session expiry or reload. Keep the lock
         // version it started from so a save in between still shows a conflict.
         setDraft(stored.draft);
         setExpectedLock(stored.baseLock);
         setChangeNote(stored.changeNote);
-        setRestoredDraft(!draftsEqual(stored.draft, saved));
+        setRestoredDraft(!draftsEqual(stored.draft, saved) || (!!stored.balls && !ballsEqual(stored.balls, savedBalls)));
       } else {
         setDraft(saved);
         setExpectedLock(f.fit?.lock_version ?? 0);
@@ -118,23 +127,25 @@ export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
   }, [customerId, load]);
 
   const errors: DraftErrors = useMemo(() => (draft ? validateDraft(draft) : {}), [draft]);
-  const dirty = !!draft && !!baseDraft && (!draftsEqual(draft, baseDraft) || restoredDraft);
+  const ballErrors = useMemo(() => validateBalls(balls), [balls]);
+  const ballsChanged = !ballsEqual(balls, baseBalls);
+  const dirty = !!draft && !!baseDraft && (!draftsEqual(draft, baseDraft) || ballsChanged || restoredDraft);
 
   // Keep unsaved work in this tab so a network drop, reload or expired session doesn't lose it.
   useEffect(() => {
     if (!draft || !baseDraft) return;
     const key = draftKey(userId, customerId);
     try {
-      if (draftsEqual(draft, baseDraft) && !changeNote) sessionStorage.removeItem(key);
+      if (draftsEqual(draft, baseDraft) && !ballsChanged && !changeNote) sessionStorage.removeItem(key);
       else
         sessionStorage.setItem(
           key,
-          JSON.stringify({ draft, baseLock: expectedLock, changeNote, savedAt: new Date().toISOString() } satisfies StoredDraft),
+          JSON.stringify({ draft, baseLock: expectedLock, changeNote, savedAt: new Date().toISOString(), balls } satisfies StoredDraft),
         );
     } catch {
       // Storage full or unavailable; the in-memory draft is still kept.
     }
-  }, [draft, baseDraft, expectedLock, changeNote, userId, customerId]);
+  }, [draft, baseDraft, balls, ballsChanged, expectedLock, changeNote, userId, customerId]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -184,10 +195,25 @@ export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
       focusField(firstError.key);
       return;
     }
+    const firstBallError = Object.keys(ballErrors)[0];
+    if (firstBallError) {
+      document.querySelector<HTMLElement>(`[data-ball="${firstBallError}"] input`)?.focus();
+      return;
+    }
     setSaving(true);
     setSaveError(null);
+    // Balls and measurements save side by side; balls only when they changed.
+    const savingBalls = ballsChanged ? saveBalls(customerId, balls) : null;
+    const savingFit = saveFit(customerId, expectedLock, draftToSnapshot(draft), changeNote);
+    savingFit.catch(() => undefined);
     try {
-      const result = await saveFit(customerId, expectedLock, draftToSnapshot(draft), changeNote);
+      if (savingBalls) {
+        // Saved balls get their ids, so a retry after a failed measurement save doesn't add them twice.
+        const saved = (await savingBalls).map(ballToDraft);
+        setBalls(saved);
+        setBaseBalls(saved);
+      }
+      const result = await savingFit;
       if (embed) {
         // Saved: from here the only thing left is the embedding page's own step.
         leaving.current = true;
@@ -197,8 +223,15 @@ export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
         await embed.onSaved(result);
         return;
       }
-      leave(`/customers/${customerId}${result.created ? '' : '?nochange=1'}`);
+      leave(`/customers/${customerId}${result.created || savingBalls ? '' : '?nochange=1'}`);
     } catch (err) {
+      // If only the balls failed, the measurements may still have saved: carry on from that version.
+      const fitSaved = await savingFit.catch(() => null);
+      if (fitSaved) {
+        setBaseDraft(draft);
+        setExpectedLock(fitSaved.lock_version);
+        setChangeNote('');
+      }
       const appErr = toAppError(err);
       if (appErr.kind === 'conflict') {
         const latest = await getCurrentFit(customerId).catch(() => null);
@@ -229,6 +262,7 @@ export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
   }
 
   const noThumb = draft.thumb_mode.text === 'no_thumb';
+  const problemCount = Object.keys(errors).length + Object.keys(ballErrors).length;
   const visibleErrors = showErrors ? errors : Object.fromEntries(Object.entries(errors).filter(([k]) => draft[k as FieldKey].text.trim() !== ''));
 
   return (
@@ -275,6 +309,7 @@ export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
               setDraft(baseDraft);
               setChangeNote('');
               setExpectedLock(base.fit?.lock_version ?? 0);
+              setBalls(baseBalls);
               setRestoredDraft(false);
             }}
           >
@@ -321,6 +356,8 @@ export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
             ))}
           </fieldset>
 
+          <BallsEditor balls={balls} errors={showErrors ? ballErrors : {}} onChange={setBalls} />
+
           <details className="fieldset more-measurements" open={OFF_SHEET.some((k) => !!visibleErrors[k])}>
             <summary>More measurements</summary>
             {FIELDS.filter((f) => OFF_SHEET.includes(f.key) && !(noThumb && f.thumbDependent)).map((f) => (
@@ -341,10 +378,9 @@ export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
               Change note <span className="muted">(optional)</span>
               <input value={changeNote} maxLength={500} onChange={(e) => setChangeNote(e.target.value)} placeholder="e.g. Opened ring span 1/16" />
             </label>
-            {showErrors && Object.keys(errors).length > 0 && (
+            {showErrors && problemCount > 0 && (
               <p className="field-error" role="alert">
-                Fix {Object.keys(errors).length} highlighted value{Object.keys(errors).length > 1 ? 's' : ''} before saving. Nothing you
-                typed was removed.
+                Fix {problemCount} highlighted value{problemCount > 1 ? 's' : ''} before saving. Nothing you typed was removed.
               </p>
             )}
             <ErrorBanner

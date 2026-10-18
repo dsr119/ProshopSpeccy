@@ -8,14 +8,16 @@ import { SheetTable, SpecSheet, displayFromSnapshot } from '../template/SpecShee
 import { getCustomer } from '../customers/api';
 import { FitIdentity, FitNotes } from '../customers/CustomerPage';
 import { getCurrentFit } from './api';
+import { listBalls } from '../balls/api';
+import { BallsList } from '../balls/BallsSection';
 import { readStoredDraft } from './EditFitPage';
 
 export function PrintPage() {
   const { customerId = '' } = useParams();
   const { userId, shop_name } = useMembership();
   const data = useAsync(async () => {
-    const [customer, fit] = await Promise.all([getCustomer(customerId), getCurrentFit(customerId)]);
-    return { customer, fit };
+    const [customer, fit, balls] = await Promise.all([getCustomer(customerId), getCurrentFit(customerId), listBalls(customerId)]);
+    return { customer, fit, balls };
   }, [customerId]);
 
   if (data.loading) {
@@ -33,7 +35,7 @@ export function PrintPage() {
     );
   }
 
-  const { customer, fit } = data.data;
+  const { customer, fit, balls } = data.data;
   const revision = fit.revision;
   const snapshot = revision?.snapshot ?? null;
   const stored = readStoredDraft(userId, customerId);
@@ -78,6 +80,7 @@ export function PrintPage() {
             <SpecSheet display={displayFromSnapshot(snapshot)} />
             <FitNotes snapshot={snapshot} />
           </div>
+          {balls.length > 0 && <BallsList balls={balls} />}
           <SheetTable snapshot={snapshot} />
         </article>
       )}

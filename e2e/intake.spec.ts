@@ -49,6 +49,11 @@ test('paper sheets go into the queue, get typed in, and land in the app with the
   await page.getByLabel(/^Name/).fill(bowler);
   await page.getByRole('button', { name: 'Add bowler and continue' }).click();
   await fillField(page, 'bridge', '1/4');
+  // The balls from the back of the paper sheet go in too.
+  await page.locator('.balls-editor').getByRole('button', { name: 'Add a ball' }).click();
+  await page.getByTestId('ball-row').getByLabel('Ball 1', { exact: true }).fill('Fictional Paper Ball');
+  await page.getByTestId('ball-row').getByLabel('Weight').selectOption('15');
+  await page.getByTestId('ball-row').getByLabel('Layout').fill('5 x 4 1/2 x 2');
   const first = page.url();
   await page.getByRole('button', { name: 'Save and send to the app' }).click();
 
@@ -66,6 +71,8 @@ test('paper sheets go into the queue, get typed in, and land in the app with the
   await expect(page.getByRole('heading', { level: 1, name: bowler })).toBeVisible();
   await expect(slot(page, 'bridge')).toHaveText('1/4');
   await expect(page.getByRole('button', { name: 'Photos (2)' })).toBeVisible();
+  await expect(page.locator('.balls-list')).toContainText('Fictional Paper Ball');
+  await expect(page.locator('.balls-list')).toContainText('5 x 4 1/2 x 2');
 
   // Signing in as "admin" shows who has done what; nobody else sees it.
   await page.goto('/intake/');

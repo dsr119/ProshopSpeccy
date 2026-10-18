@@ -67,6 +67,28 @@ export async function findPossibleDuplicates(name: string, phone: string): Promi
   return unwrap(await supabase.rpc('find_possible_duplicates', { p_name: name, p_phone: phone || null })) as DuplicateRow[];
 }
 
+/** A bowler taken out of the app, who can be brought back. */
+export interface RemovedCustomer {
+  id: string;
+  name: string;
+  phone: string | null;
+  removed_at: string;
+  removed_by: string | null;
+}
+
+/** Takes a bowler out of every list and search. Their specs, balls and photos are kept, so it can be undone. */
+export async function removeCustomer(id: string, by: string | null = null): Promise<void> {
+  unwrap(await supabase.rpc('remove_customer', { p_id: id, p_name: by }));
+}
+
+export async function restoreCustomer(id: string): Promise<void> {
+  unwrap(await supabase.rpc('restore_customer', { p_id: id }));
+}
+
+export async function listRemovedCustomers(): Promise<RemovedCustomer[]> {
+  return unwrap(await supabase.rpc('list_removed_customers')) as RemovedCustomer[];
+}
+
 export async function getCustomer(id: string): Promise<Customer> {
   return unwrap(await supabase.from('customers').select('*').eq('id', id).single()) as Customer;
 }

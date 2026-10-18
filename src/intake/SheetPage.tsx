@@ -15,7 +15,7 @@ import {
   type CustomerInput,
   type CustomerSearchRow,
 } from '../customers/api';
-import { finishAndNext, getItem, intakePhotoUrl, preloadUpNext, releaseItem, type CopiedPhotos, type IntakeItem } from './api';
+import { finishAndNext, getItem, intakePhotoUrl, preloadUpNext, releaseItem, removeItem, type CopiedPhotos, type IntakeItem } from './api';
 import { appCustomerUrl } from './IntakeHome';
 
 const bowlerKey = (itemId: string) => `proshop:intake:bowler:${itemId}`;
@@ -46,6 +46,7 @@ export function SheetPage() {
   const [customerId, setCustomerId] = useState<string | null>(() => readBowler(itemId));
   const [error, setError] = useState<AppError | null>(null);
   const [settingAside, setSettingAside] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const copied = useRef<CopiedPhotos>({});
 
   useEffect(() => {
@@ -128,6 +129,9 @@ export function SheetPage() {
           <button type="button" className="btn btn--small" onClick={() => setSettingAside(true)}>
             Can't read it
           </button>
+          <button type="button" className="btn btn--small btn--danger-outline" onClick={() => setRemoving(true)}>
+            Delete sheet
+          </button>
         </div>
         <ErrorBanner error={error} />
         {someoneElse && (
@@ -166,6 +170,16 @@ export function SheetPage() {
           <FindBowler onChoose={chooseBowler} />
         )}
       </div>
+
+      <RemoveSheetDialog
+        open={removing}
+        onClose={() => setRemoving(false)}
+        onDone={async () => {
+          await removeItem(itemId, name);
+          keepBowler(itemId, null);
+          navigate(`/?removed=${itemId}`);
+        }}
+      />
 
       <SetAsideDialog
         open={settingAside}
@@ -333,6 +347,45 @@ function FindBowler({ onChoose }: { onChoose: (customerId: string) => void }) {
         Add a new bowler
       </button>
     </section>
+  );
+}
+
+function RemoveSheetDialog({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<AppError | null>(null);
+  return (
+    <Dialog
+      open={open}
+      title="Delete this sheet from the queue?"
+      onClose={onClose}
+      actions={
+        <>
+          <button
+            type="button"
+            className="btn btn--danger"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setError(null);
+              try {
+                await onDone();
+              } catch (e) {
+                setError(toAppError(e));
+                setBusy(false);
+              }
+            }}
+          >
+            {busy ? 'Deleting…' : 'Delete sheet'}
+          </button>
+          <button type="button" className="btn" onClick={onClose}>
+            Keep it
+          </button>
+        </>
+      }
+    >
+      <ErrorBanner error={error} />
+      <p>Use this for a duplicate photo or one that isn't a spec sheet. If it was a mistake, bring it back from "Recently deleted sheets" on the queue page.</p>
+    </Dialog>
   );
 }
 
