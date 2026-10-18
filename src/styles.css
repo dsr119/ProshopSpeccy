@@ -1594,3 +1594,30 @@ a:focus-visible {
 .intake-work .editor__bar {
   z-index: 30;
 }
+.intake-people__wrap {
+  overflow-x: auto;
+  margin: 0.5rem 0;
+}
+.intake-people__table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.intake-people__table th,
+.intake-people__table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  white-space: nowrap;
+}
+.intake-people__table th:first-child {
+  text-align: left;
+}
+.intake-people__table td {
+  font-variant-numeric: tabular-nums;
+}
+.intake-people__table tbody tr:last-child > * {
+  border-bottom: 0;
+}

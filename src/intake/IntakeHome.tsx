@@ -4,7 +4,7 @@ import { toAppError, type AppError } from '../lib/errors';
 import { formatDateTime } from '../lib/format';
 import { useAsync } from '../lib/useAsync';
 import { ErrorBanner, Notice, Spinner } from '../components/ui';
-import { claimNext, getCounts, listItems, releaseItem, type IntakeItem } from './api';
+import { claimNext, getCounts, getPeopleStats, isAdminName, listItems, releaseItem, type IntakeItem } from './api';
 
 /** The app's own customer page, opened in a new tab. */
 export const appCustomerUrl = (id: string) => `${import.meta.env.BASE_URL}customers/${id}`;
@@ -81,6 +81,8 @@ export function IntakeHome() {
       </div>
       {empty && <Notice>Nothing is waiting in the queue right now.</Notice>}
 
+      {isAdminName(name) && <PeopleStats />}
+
       <ItemList
         title="Being typed in now"
         items={working.data}
@@ -131,6 +133,55 @@ export function IntakeHome() {
         )}
       />
     </main>
+  );
+}
+
+/** Admin only: how many sheets each person has typed in and photographed. */
+function PeopleStats() {
+  const stats = useAsync(getPeopleStats, []);
+  return (
+    <section className="intake-list intake-people" aria-label="Who has done what">
+      <h2>Who has done what</h2>
+      <ErrorBanner error={stats.error} onRetry={stats.reload} />
+      {stats.loading ? (
+        <Spinner />
+      ) : !stats.data?.length ? (
+        <p className="muted">Nobody has added or typed in a sheet yet.</p>
+      ) : (
+        <div className="intake-people__wrap">
+          <table className="intake-people__table">
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Typed in today</th>
+                <th scope="col">This week</th>
+                <th scope="col">All time</th>
+                <th scope="col">Photos taken</th>
+                <th scope="col">Open now</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.data.map((p) => (
+                <tr key={p.name.toLowerCase()}>
+                  <th scope="row">{p.name}</th>
+                  <td>{p.typed_today.toLocaleString()}</td>
+                  <td>{p.typed_week.toLocaleString()}</td>
+                  <td>{p.typed_total.toLocaleString()}</td>
+                  <td>{p.added_total.toLocaleString()}</td>
+                  <td>{p.working_now.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="muted small">
+        Names are grouped as typed, ignoring capitals. The week starts on Monday.{' '}
+        <button type="button" className="linklike" onClick={stats.reload}>
+          Refresh
+        </button>
+      </p>
+    </section>
   );
 }
 

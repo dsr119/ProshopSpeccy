@@ -292,6 +292,34 @@ export async function finishAndNext(
   return next?.id ? handOut(next) : null;
 }
 
+/** How much one person has done in the queue. */
+export interface PersonStats {
+  name: string;
+  typed_today: number;
+  typed_week: number;
+  typed_total: number;
+  added_total: number;
+  working_now: number;
+}
+
+/** Everyone's counts, most sheets typed in first. "Today" and "this week" are in this device's time zone. */
+export async function getPeopleStats(): Promise<PersonStats[]> {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  const res = await supabase.rpc('intake_stats', { p_tz: tz });
+  if (res.error) throw toAppError(res.error);
+  return ((res.data ?? []) as PersonStats[]).map((r) => ({
+    name: r.name,
+    typed_today: Number(r.typed_today),
+    typed_week: Number(r.typed_week),
+    typed_total: Number(r.typed_total),
+    added_total: Number(r.added_total),
+    working_now: Number(r.working_now),
+  }));
+}
+
+/** Typing "admin" as your name shows everyone's counts on the queue page. */
+export const isAdminName = (name: string) => name.trim().toLowerCase() === 'admin';
+
 const NAME_KEY = 'proshop:intake:name';
 
 export function readWorkerName(): string {

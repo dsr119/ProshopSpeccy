@@ -66,4 +66,14 @@ test('paper sheets go into the queue, get typed in, and land in the app with the
   await expect(page.getByRole('heading', { level: 1, name: bowler })).toBeVisible();
   await expect(slot(page, 'bridge')).toHaveText('1/4');
   await expect(page.getByRole('button', { name: 'Photos (2)' })).toBeVisible();
+
+  // Signing in as "admin" shows who has done what; nobody else sees it.
+  await page.goto('/intake/');
+  await expect(page.getByRole('heading', { name: 'Who has done what' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Not you?' }).click();
+  await page.getByLabel('Your name').fill('Admin');
+  await page.getByRole('button', { name: 'Continue' }).click();
+  const row = page.locator('.intake-people__table tbody tr', { hasText: 'Sam Intake' });
+  await expect(row.locator('td').nth(0)).not.toHaveText('0');
+  await expect(row.locator('td').nth(3)).not.toHaveText('0');
 });
