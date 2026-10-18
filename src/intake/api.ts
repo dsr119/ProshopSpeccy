@@ -54,8 +54,22 @@ export async function listItems(status: IntakeStatus, limit = 50): Promise<Intak
   ) as IntakeItem[];
 }
 
+// A sheet just handed out by the queue, so opening it doesn't fetch it again.
+const handedOut = new Map<string, IntakeItem>();
+
 export async function getItem(id: string): Promise<IntakeItem> {
+  const known = handedOut.get(id);
+  if (known) {
+    handedOut.delete(id);
+    return known;
+  }
   return unwrap(await supabase.from('intake_items').select('*').eq('id', id).single()) as IntakeItem;
+}
+
+function handOut(item: IntakeItem): IntakeItem {
+  handedOut.set(item.id, item);
+  preloadSheet(item);
+  return item;
 }
 
 /** Queue file paths: R2 keys start with the bucket name, Supabase paths don't. */
@@ -98,12 +112,67 @@ export async function addToQueue(shopId: string, original: File, addedBy: string
   return row.data as IntakeItem;
 }
 
-/** A viewing link for the front or back of a queued sheet. */
-export async function intakePhotoUrl(item: Pick<IntakeItem, 'store'>, path: string): Promise<string> {
-  if (item.store === 'r2') return (await r2ViewUrls([path]))[path];
-  const { data, error } = await supabase.storage.from(INTAKE_BUCKET).createSignedUrl(path, 3600);
+// Viewing links last an hour; reuse them for most of that so a sheet's photo
+// is fetched once and comes from the browser's cache after that.
+const LINK_REUSE_MS = 45 * 60 * 1000;
+const links = new Map<string, { url: Promise<string>; at: number }>();
+
+async function signSides(item: Pick<IntakeItem, 'store'>, paths: string[]): Promise<Record<string, string>> {
+  if (item.store === 'r2') return r2ViewUrls(paths);
+  const { data, error } = await supabase.storage.from(INTAKE_BUCKET).createSignedUrls(paths, 3600);
   if (error) throw toAppError(error);
-  return data.signedUrl;
+  return Object.fromEntries(data.map((d, i) => [paths[i], d.signedUrl ?? '']));
+}
+
+/** Links for the front and back of a sheet, signed together in one call and remembered. */
+function sheetLinks(item: Pick<IntakeItem, 'store' | 'object_path' | 'back_path'>): Promise<string>[] {
+  const now = Date.now();
+  const paths = [item.object_path, item.back_path].filter((p): p is string => !!p);
+  const missing = paths.filter((p) => !(links.get(p) && now - links.get(p)!.at < LINK_REUSE_MS));
+  if (missing.length) {
+    const signed = signSides(item, missing);
+    for (const p of missing) {
+      const url = signed.then((all) => {
+        if (!all[p]) throw new AppError('unknown', "Couldn't get the photo. Try again.");
+        return all[p];
+      });
+      url.catch(() => links.delete(p));
+      links.set(p, { url, at: now });
+    }
+  }
+  return paths.map((p) => links.get(p)!.url);
+}
+
+/** A viewing link for the front or back of a queued sheet. */
+export async function intakePhotoUrl(item: Pick<IntakeItem, 'store' | 'object_path' | 'back_path'>, path: string): Promise<string> {
+  const urls = sheetLinks(item);
+  return path === item.back_path && urls.length > 1 ? urls[1] : urls[0];
+}
+
+/** Starts downloading a sheet's photos in the background, so they show at once when it's opened. */
+export function preloadSheet(item: IntakeItem) {
+  for (const url of sheetLinks(item)) {
+    url
+      .then((u) => {
+        const img = new Image();
+        img.decoding = 'async';
+        img.src = u;
+      })
+      .catch(() => undefined);
+  }
+}
+
+/** Gets the photos of the sheet most likely to come up next ready, without taking it. */
+export async function preloadUpNext(skipId: string): Promise<void> {
+  const res = await supabase
+    .from('intake_items')
+    .select('*')
+    .eq('status', 'waiting')
+    .neq('id', skipId)
+    .order('created_at')
+    .limit(1);
+  const item = res.data?.[0] as IntakeItem | undefined;
+  if (item) preloadSheet(item);
 }
 
 /** Adds the back of a sheet that is already in the queue. */
@@ -122,7 +191,7 @@ export async function claimNext(name: string): Promise<IntakeItem | null> {
   const res = await supabase.rpc('claim_next_intake', { p_name: name });
   if (res.error) throw toAppError(res.error);
   const item = res.data as IntakeItem | null;
-  return item?.id ? item : null;
+  return item?.id ? handOut(item) : null;
 }
 
 export async function releaseItem(id: string, unreadable = false, note: string | null = null): Promise<IntakeItem> {
@@ -189,6 +258,38 @@ export async function finishItem(
     await supabase.storage.from(INTAKE_BUCKET).remove(paths).catch(() => undefined);
   }
   return res.data as IntakeItem;
+}
+
+/**
+ * Finishes a sheet and takes the next one for the same person. Sheets in R2
+ * do it all in one trip to the database; older sheets copy their files first.
+ * Returns the next sheet, or null when the queue is empty.
+ */
+export async function finishAndNext(
+  item: IntakeItem,
+  customerId: string,
+  revisionId: string,
+  name: string,
+  copied: CopiedPhotos,
+): Promise<IntakeItem | null> {
+  if (item.store !== 'r2') {
+    await finishItem(item, customerId, revisionId, name, copied);
+    return claimNext(name).catch(() => null);
+  }
+  const res = await supabase.rpc('finish_intake', {
+    p_id: item.id,
+    p_customer_id: customerId,
+    p_revision_id: revisionId,
+    p_name: name,
+  });
+  if (res.error) {
+    const err = toAppError(res.error);
+    // Saved already (the answer was lost on the way back): just move on.
+    if (err.kind !== 'conflict') throw err;
+    return claimNext(name).catch(() => null);
+  }
+  const next = (res.data as { next: IntakeItem | null }).next;
+  return next?.id ? handOut(next) : null;
 }
 
 const NAME_KEY = 'proshop:intake:name';
