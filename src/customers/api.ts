@@ -28,8 +28,19 @@ export interface CustomerSearchRow {
   updated_at: string;
   photo_count: number;
   has_specs: boolean;
+  spec_sheet_count: number;
+  ball_count: number;
   total_count: number;
 }
+
+export type CustomerSort = 'last_name' | 'name' | 'phone' | 'created' | 'updated';
+export const SORT_LABELS: Record<CustomerSort, string> = {
+  last_name: 'Last name',
+  name: 'Name',
+  phone: 'Telephone',
+  created: 'Last created',
+  updated: 'Last updated',
+};
 
 export interface DuplicateRow {
   id: string;
@@ -39,10 +50,15 @@ export interface DuplicateRow {
   reason: string;
 }
 
-export const PAGE_SIZE = 25;
+export const PAGE_SIZE = 60;
 
-export async function searchCustomers(query: string, offset = 0, signal?: AbortSignal): Promise<CustomerSearchRow[]> {
-  let req = supabase.rpc('search_customers', { p_query: query, p_limit: PAGE_SIZE, p_offset: offset });
+export async function searchCustomers(
+  query: string,
+  offset = 0,
+  signal?: AbortSignal,
+  sort: CustomerSort = 'last_name',
+): Promise<CustomerSearchRow[]> {
+  let req = supabase.rpc('search_customers', { p_query: query, p_limit: PAGE_SIZE, p_offset: offset, p_sort: sort });
   if (signal) req = req.abortSignal(signal);
   return unwrap(await req) as CustomerSearchRow[];
 }
@@ -157,4 +173,16 @@ export async function getStaffName(shopId: string, userId: string | null): Promi
     .eq('user_id', userId)
     .maybeSingle();
   return data ? data.display_name || data.email : null;
+}
+
+/** Splits a full name for the list: last word as the last name, the rest as first names. */
+export function splitName(name: string): { first: string; last: string } {
+  const words = name.trim().split(/\s+/);
+  if (words.length < 2) return { first: '', last: words[0] ?? '' };
+  return { first: words.slice(0, -1).join(' '), last: words[words.length - 1] };
+}
+
+export function initials(name: string): string {
+  const { first, last } = splitName(name);
+  return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase() || '?';
 }

@@ -62,7 +62,8 @@ test('a customer can have an uploaded sheet photo before any digital specs', asy
 
   await page.goto('/');
   await page.getByLabel('Search by name or phone').fill(name);
-  await expect(page.locator('.results')).toContainText('2 photos');
+  await expect(page.locator('.results')).toContainText('1 spec sheet');
+  await expect(page.locator('.results')).toContainText('1 ball');
   await expect(page.locator('.results')).toContainText('No digital specs');
 
   // Recorded files cannot be removed through the Storage API, and nonmembers cannot read them.

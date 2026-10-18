@@ -3,7 +3,7 @@
 // the item in the middle band is the chosen one. Items can also be tapped,
 // and the arrow keys move a focused wheel.
 
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 
 const ITEM_H = 44;
 const VISIBLE = 5;
@@ -21,9 +21,13 @@ interface WheelPickerProps {
   onDone: (values: string[]) => void;
   onClear: () => void;
   onClose: () => void;
+  /** Headings over runs of wheels, e.g. "Horizontal" over its inches and fraction wheels. */
+  groups?: Array<{ label: string; span: number }>;
+  /** Extra controls under the wheels. */
+  footer?: ReactNode;
 }
 
-export function WheelPicker({ title, columns, initial, onDone, onClear, onClose }: WheelPickerProps) {
+export function WheelPicker({ title, columns, initial, onDone, onClear, onClose, groups, footer }: WheelPickerProps) {
   const [picked, setPicked] = useState(() =>
     columns.map((c, i) => Math.max(0, c.options.findIndex((o) => o.value === initial[i]))),
   );
@@ -36,7 +40,7 @@ export function WheelPicker({ title, columns, initial, onDone, onClear, onClose 
 
   return (
     <div className="wheel-backdrop" onClick={onClose}>
-      <div className="wheel-sheet" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+      <div className={`wheel-sheet${groups ? ' wheel-sheet--grouped' : ''}`} role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <div className="wheel-sheet__bar">
           <button type="button" className="wheel-sheet__action" onClick={onClear}>
             Clear
@@ -50,6 +54,15 @@ export function WheelPicker({ title, columns, initial, onDone, onClear, onClose 
             Done
           </button>
         </div>
+        {groups && (
+          <div className="wheel-sheet__groups" aria-hidden="true">
+            {groups.map((g) => (
+              <span key={g.label} style={{ flex: g.span }}>
+                {g.label}
+              </span>
+            ))}
+          </div>
+        )}
         <div className="wheel-sheet__wheels" style={{ height: ITEM_H * VISIBLE }}>
           <div className="wheel-sheet__band" style={{ top: ITEM_H * Math.floor(VISIBLE / 2), height: ITEM_H }} aria-hidden="true" />
           {columns.map((col, i) => (
@@ -61,6 +74,7 @@ export function WheelPicker({ title, columns, initial, onDone, onClear, onClose 
             />
           ))}
         </div>
+        {footer}
       </div>
     </div>
   );

@@ -10,6 +10,9 @@ import {
   GRIP_SIZES,
   HOLE_SIZES,
   spanField,
+  papText,
+  joinInches,
+  splitInches,
   upgradeSnapshot,
   type Snapshot,
   SPAN_FRACTIONS,
@@ -91,7 +94,8 @@ describe('measurement schema', () => {
       axis_rotation: { text: '45' },
       axis_tilt: { text: '12.5' },
       speed: { text: '17.2' },
-      pap: { text: '5 1/2 over, 1/2 up' },
+      pap_horizontal: { text: '5 1/2' },
+      pap_vertical: { text: '1/2', dir: 'up' },
       written_by: { text: 'Pat' },
     });
     expect(validateDraft(d)).toEqual({});
@@ -100,6 +104,13 @@ describe('measurement schema', () => {
     expect(formatValue('rev_rate', s.rev_rate, { unit: true })).toBe('450 rpm');
     expect(formatValue('axis_tilt', s.axis_tilt, { unit: true })).toBe('12.5°');
     expect(formatValue('speed', s.speed, { unit: true })).toBe('17.2 mph');
+    expect(formatValue('pap_vertical', s.pap_vertical)).toBe('1/2 Up');
+    expect(papText('5 1/2', '1/2', 'up')).toBe('5 1/2 over, 1/2 up');
+    expect(validateDraft(draftWith({ pap_vertical: { text: '1/4' } })).pap_vertical).toBe('Choose up or down');
+    expect(validateDraft(draftWith({ pap_horizontal: { text: '8 1/16' } })).pap_horizontal).toMatch(/0 to 8/);
+    expect(joinInches('0', '3/8', 2)).toBe('3/8');
+    expect(joinInches('2', '3/8', 2)).toBe('2');
+    expect(splitInches('5 1/2')).toEqual({ whole: '5', fraction: '1/2' });
     expect(validateDraft(draftWith({ axis_rotation: { text: '91' } })).axis_rotation).toBe('Enter 0 to 90');
     expect(validateDraft(draftWith({ speed: { text: '-3' } })).speed).toMatch(/negative/);
   });

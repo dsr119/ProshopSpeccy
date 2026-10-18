@@ -79,6 +79,11 @@ test('the sheet stays legible without clipping at phone, tablet and desktop size
     await page.goto(`/customers/${id}/edit`);
     await checkSheet(page);
     await page.screenshot({ path: `test-results/screens/edit-${name}.png`, fullPage: true });
+    await page.goto('/');
+    await expect(page.locator('.results li').first()).toBeVisible();
+    // Customer cards never run past the screen edge.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: `test-results/screens/dashboard-${name}.png` });
   }
 
   await page.setViewportSize({ width: 1280, height: 900 });

@@ -20,6 +20,8 @@ export type FieldKind =
   | 'angle'
   | 'pitch_lateral'
   | 'pitch_fr'
+  /** An amount up or down, such as the vertical P.A.P. */
+  | 'pitch_ud'
   /** A plain number with its own unit and range, such as rev rate or speed. */
   | 'stat';
 
@@ -76,7 +78,8 @@ export const FIELD_KEYS = [
   'axis_rotation',
   'axis_tilt',
   'speed',
-  'pap',
+  'pap_horizontal',
+  'pap_vertical',
   'written_by',
   'finger_insert_details',
   'thumb_system_details',
@@ -132,7 +135,8 @@ export const FIELDS: FieldDef[] = [
   { key: 'axis_rotation', kind: 'stat', label: 'Axis rotation', shortLabel: 'Axis Rotation', group: 'motion', unit: '°' },
   { key: 'axis_tilt', kind: 'stat', label: 'Axis tilt', shortLabel: 'Axis Tilt', group: 'motion', unit: '°' },
   { key: 'speed', kind: 'stat', label: 'Speed', shortLabel: 'Speed', group: 'motion', unit: 'mph' },
-  { key: 'pap', kind: 'text_short', label: 'P.A.P', shortLabel: 'P.A.P', group: 'motion' },
+  { key: 'pap_horizontal', kind: 'length', label: 'P.A.P horizontal', shortLabel: 'P.A.P over', group: 'motion', unit: 'in' },
+  { key: 'pap_vertical', kind: 'pitch_ud', label: 'P.A.P vertical', shortLabel: 'P.A.P up/down', group: 'motion', unit: 'in' },
   { key: 'written_by', kind: 'text_short', label: 'Specs written by', shortLabel: 'Written By', group: 'motion' },
 
   { key: 'finger_insert_details', kind: 'text_long', label: 'Finger insert details', shortLabel: 'Finger inserts', group: 'details' },
@@ -155,6 +159,7 @@ export const GROUP_LABELS: Record<FieldGroup, string> = {
 
 export type LateralDir = 'left' | 'right' | 'none';
 export type ForwardDir = 'forward' | 'reverse' | 'none';
+export type VerticalDir = 'up' | 'down' | 'none';
 export type Hand = 'right' | 'left';
 export type ThumbMode = 'thumb_in' | 'no_thumb';
 export type SpanType = 'cut_to_cut' | 'full_span' | 'cut_to_outer';
@@ -246,7 +251,7 @@ export interface StoredNumber extends Rational {
   entered: string;
 }
 export interface StoredPitch extends StoredNumber {
-  dir: LateralDir | ForwardDir;
+  dir: LateralDir | ForwardDir | VerticalDir;
 }
 
 /** Snapshot as stored in fit_revisions.snapshot. null means "not recorded". */
@@ -262,11 +267,11 @@ export interface DraftValue {
 export type Draft = Record<FieldKey, DraftValue>;
 
 export function isNumericKind(kind: FieldKind): boolean {
-  return kind === 'length' || kind === 'angle' || kind === 'pitch_lateral' || kind === 'pitch_fr' || kind === 'stat';
+  return kind === 'length' || kind === 'angle' || kind === 'pitch_lateral' || kind === 'pitch_fr' || kind === 'pitch_ud' || kind === 'stat';
 }
 
 export function isPitchKind(kind: FieldKind): boolean {
-  return kind === 'pitch_lateral' || kind === 'pitch_fr';
+  return kind === 'pitch_lateral' || kind === 'pitch_fr' || kind === 'pitch_ud';
 }
 
 /** Pitches run from 0 to 2 inches and spans from 2 to 6, both in steps of 1/16 (mirrored in private.normalize_fit_snapshot). */
@@ -319,6 +324,34 @@ export function joinSpan(whole: string, fraction: string): string {
   if (!whole) return '';
   if (whole === String(SPAN_MAX) || !fraction || fraction === '0') return whole;
   return `${whole} ${fraction}`;
+}
+
+/** Longest P.A.P horizontal offered, in inches. */
+export const PAP_MAX = 8;
+
+/** Any amount in sixteenths split for two wheels; null when it isn't on a 1/16 step. */
+export function splitInches(text: string): { whole: string; fraction: string } | null {
+  const parsed = parseMeasurement(text);
+  if (!parsed.ok || 16 % parsed.value.d !== 0) return null;
+  const { n, d } = parsed.value;
+  const whole = Math.floor(n / d);
+  return { whole: String(whole), fraction: sixteenths(((n - whole * d) * 16) / d) };
+}
+
+/** Joins two wheels into an amount; the top whole inch takes no fraction. */
+export function joinInches(whole: string, fraction: string, max: number): string {
+  if (!whole) return '';
+  const hasFraction = fraction && fraction !== '0' && Number(whole) < max;
+  if (whole === '0') return hasFraction ? fraction : '0';
+  return hasFraction ? `${whole} ${fraction}` : whole;
+}
+
+/** The P.A.P as bowlers say it, e.g. "5 1/2 over, 1/2 up". */
+export function papText(horizontal: string | null, vertical: string | null, dir: string | undefined): string {
+  const parts: string[] = [];
+  if (horizontal) parts.push(`${horizontal} over`);
+  if (vertical) parts.push(dir === 'up' || dir === 'down' ? `${vertical} ${dir}` : vertical);
+  return parts.join(', ');
 }
 
 function pitchRangeError(value: Rational): string | null {
@@ -384,6 +417,14 @@ export function validateDraft(draft: Draft): DraftErrors {
       ? parsed.value.n > statRange[1] * parsed.value.d
         ? `Enter ${statRange[0]} to ${statRange[1]}`
         : null
+      : f.kind === 'pitch_ud'
+      ? parsed.value.n > 2 * parsed.value.d || 16 % parsed.value.d !== 0
+        ? 'Choose 0 to 2 inches in 1/16 steps'
+        : null
+      : f.key === 'pap_horizontal'
+      ? parsed.value.n > PAP_MAX * parsed.value.d || 16 % parsed.value.d !== 0
+        ? `Choose 0 to ${PAP_MAX} inches in 1/16 steps`
+        : null
       : isPitchKind(f.kind)
       ? pitchRangeError(parsed.value)
       : (SPAN_FIELDS as readonly FieldKey[]).includes(f.key)
@@ -396,7 +437,8 @@ export function validateDraft(draft: Draft): DraftErrors {
       continue;
     }
     if (isPitchKind(f.kind) && parsed.value.n !== 0 && (!dir || dir === 'none')) {
-      errors[f.key] = f.kind === 'pitch_lateral' ? 'Choose left or right' : 'Choose forward or reverse';
+      errors[f.key] =
+        f.kind === 'pitch_lateral' ? 'Choose left or right' : f.kind === 'pitch_ud' ? 'Choose up or down' : 'Choose forward or reverse';
     }
   }
   if (draft.finger_grips.text !== 'grips') {
@@ -460,6 +502,8 @@ const DIR_LABELS: Record<string, string> = {
   right: 'Right',
   forward: 'Forward',
   reverse: 'Reverse',
+  up: 'Up',
+  down: 'Down',
   none: 'Neutral',
 };
 
