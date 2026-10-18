@@ -48,8 +48,30 @@ Deno.serve(async (req) => {
     const testUrl = `${endpoint.replace(/\/$/, '')}/${bucket}/_health/check.txt`;
     const put = await r2.fetch(testUrl, { method: 'PUT', body: 'ok', headers: { 'Content-Type': 'text/plain' } }).catch((e) => e as Error);
     const write = put instanceof Error ? put.message : put.ok ? 'ok' : `${put.status} ${(await put.text()).slice(0, 300)}`;
-    if (write === 'ok') await r2.fetch(testUrl, { method: 'DELETE' }).catch(() => undefined);
-    return reply(200, { ok: true, bucket, endpoint, keyIdLength: accessKeyId.length, secretLength: secretAccessKey.length, write });
+    // The same upload the browser makes: a signed link, sent with only Content-Type.
+    const link = await r2.sign(new Request(`${testUrl}?X-Amz-Expires=${LINK_SECONDS}`, { method: 'PUT' }), { aws: { signQuery: true } });
+    const viaLink = await fetch(link.url, {
+      method: 'PUT',
+      body: 'ok',
+      headers: { 'Content-Type': 'image/jpeg', Origin: 'https://dsr119.github.io' },
+    }).catch((e) => e as Error);
+    const linkWrite =
+      viaLink instanceof Error
+        ? viaLink.message
+        : viaLink.ok
+          ? `ok (allow-origin: ${viaLink.headers.get('access-control-allow-origin') ?? 'missing'})`
+          : `${viaLink.status} ${(await viaLink.text()).slice(0, 300)}`;
+    await r2.fetch(testUrl, { method: 'DELETE' }).catch(() => undefined);
+    return reply(200, {
+      ok: true,
+      bucket,
+      endpoint,
+      keyIdLength: accessKeyId.length,
+      secretLength: secretAccessKey.length,
+      write,
+      linkWrite,
+      linkSample: link.url.replace(/X-Amz-(Credential|Signature)=[^&]+/g, 'X-Amz-$1=…'),
+    });
   }
 
   let op: string, keys: string[];
