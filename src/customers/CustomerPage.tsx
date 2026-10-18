@@ -11,6 +11,8 @@ import { SheetTable, SpecSheet, displayFromSnapshot } from '../template/SpecShee
 import { getCurrentFit, isConfirmed, setFitConfirmed, type Fit } from '../fits/api';
 import { listPhotos } from '../photos/api';
 import { PhotosPanel } from '../photos/PhotosPage';
+import { listBalls } from '../balls/api';
+import { BallsList } from '../balls/BallsSection';
 import { BowlerCard } from './BowlerCard';
 import { customerInput, getCustomer, updateCustomer, validateCustomer, type Customer, type CustomerInput } from './api';
 import { CustomerFields } from './NewCustomerPage';
@@ -95,6 +97,7 @@ export function CustomerPage() {
   const customer = useAsync(() => getCustomer(customerId), [customerId]);
   const fit = useAsync(() => getCurrentFit(customerId), [customerId]);
   const photos = useAsync(() => listPhotos(customerId), [customerId]);
+  const balls = useAsync(() => listBalls(customerId), [customerId]);
   const [enlarged, setEnlarged] = useState(false);
   const [editingDetails, setEditingDetails] = useState(false);
   const view = params.get('view') === 'photos' ? 'photos' : 'sheet';
@@ -232,6 +235,9 @@ export function CustomerPage() {
               </Link>
             </div>
           )}
+
+          <ErrorBanner error={balls.error} onRetry={balls.reload} />
+          {balls.data && <BallsList balls={balls.data} />}
         </section>
       )}
 
