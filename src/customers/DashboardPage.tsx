@@ -2,15 +2,18 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMembership } from '../lib/auth';
 import { toAppError, type AppError } from '../lib/errors';
-import { formatDate } from '../lib/format';
 import { getRecent } from '../lib/recent';
 import { ErrorBanner, Spinner } from '../components/ui';
-import { PAGE_SIZE, searchCustomers, type CustomerSearchRow } from './api';
+import { PAGE_SIZE, SORT_LABELS, initials, searchCustomers, splitName, type CustomerSearchRow, type CustomerSort } from './api';
 
 export function DashboardPage() {
   const { userId } = useMembership();
   const navigate = useNavigate();
   const [query, setQuery] = useState(() => sessionStorage.getItem('proshop:lastQuery') ?? '');
+  const [sort, setSort] = useState<CustomerSort>(() => {
+    const saved = sessionStorage.getItem('proshop:sort');
+    return saved && saved in SORT_LABELS ? (saved as CustomerSort) : 'last_name';
+  });
   const [rows, setRows] = useState<CustomerSearchRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -23,11 +26,12 @@ export function DashboardPage() {
 
   useEffect(() => {
     sessionStorage.setItem('proshop:lastQuery', query);
+    sessionStorage.setItem('proshop:sort', sort);
     const controller = new AbortController();
     setLoading(true);
     setError(null);
     const t = setTimeout(() => {
-      searchCustomers(query, 0, controller.signal)
+      searchCustomers(query, 0, controller.signal, sort)
         .then((r) => {
           setRows(r);
           setTotal(r[0]?.total_count ?? 0);
@@ -44,12 +48,12 @@ export function DashboardPage() {
       clearTimeout(t);
       controller.abort();
     };
-  }, [query, retry]);
+  }, [query, sort, retry]);
 
   async function loadMore() {
     setLoadingMore(true);
     try {
-      const more = await searchCustomers(query, rows.length);
+      const more = await searchCustomers(query, rows.length, undefined, sort);
       setRows((r) => [...r, ...more]);
     } catch (e) {
       setError(toAppError(e));
@@ -91,6 +95,16 @@ export function DashboardPage() {
         <label htmlFor="customer-search" className="search__label">
           Search by name or phone
         </label>
+        <label className="search__sort">
+          Sort by
+          <select value={sort} onChange={(e) => setSort(e.target.value as CustomerSort)}>
+            {(Object.entries(SORT_LABELS) as Array<[CustomerSort, string]>).map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </label>
         <input
           id="customer-search"
           type="search"
@@ -111,7 +125,7 @@ export function DashboardPage() {
 
       <section aria-labelledby="results-heading">
         <h2 id="results-heading" className="section-title">
-          {trimmed ? 'Matches' : 'Recently updated'}
+          {trimmed ? 'Matches' : `Everyone, by ${SORT_LABELS[sort].toLowerCase()}`}
           {!loading && !error && total > 0 && <span className="muted"> ({total})</span>}
         </h2>
         {loading ? (
@@ -128,19 +142,37 @@ export function DashboardPage() {
           )
         ) : (
           <ul id="customer-results" className="results" role="listbox" ref={listRef} aria-label="Customers">
-            {rows.map((c, i) => (
-              <li key={c.id} id={`result-${c.id}`} role="option" aria-selected={i === active}>
-                <Link to={`/customers/${c.id}`} className={`result${i === active ? ' result--active' : ''}`}>
-                  <span className="result__name">{c.name}</span>
-                  <span className="result__meta">
-                    {c.phone && <span>{c.phone}</span>}
-                    <span>{c.last_spec_at ? `Specs updated ${formatDate(c.last_spec_at)}` : 'No digital specs'}</span>
-                    {c.photo_count > 0 && <span>{c.photo_count} photo{c.photo_count === 1 ? '' : 's'}</span>}
-                  </span>
-                  {c.notes && <span className="result__notes">{c.notes}</span>}
-                </Link>
-              </li>
-            ))}
+            {rows.map((c, i) => {
+              const { first, last } = splitName(c.name);
+              return (
+                <li key={c.id} id={`result-${c.id}`} role="option" aria-selected={i === active}>
+                  <Link to={`/customers/${c.id}`} className={`result${i === active ? ' result--active' : ''}`}>
+                    <span className="result__top">
+                      <span className="result__avatar" aria-hidden="true">
+                        {initials(c.name)}
+                      </span>
+                      <span className="result__who">
+                        <span className="visually-hidden">{c.name}</span>
+                        <span className="result__name" aria-hidden="true">
+                          <span className="result__last">{last}</span>
+                          {first && <span className="result__first">{first}</span>}
+                        </span>
+                        {c.phone && <span className="result__phone">{c.phone}</span>}
+                      </span>
+                    </span>
+                    <span className="result__meta">
+                      <span>
+                        {c.spec_sheet_count} spec sheet{c.spec_sheet_count === 1 ? '' : 's'}
+                      </span>
+                      <span>
+                        {c.ball_count} ball{c.ball_count === 1 ? '' : 's'}
+                      </span>
+                      <span className="visually-hidden">{c.has_specs ? 'Has digital specs' : 'No digital specs'}</span>
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         )}
         {!loading && rows.length < total && (

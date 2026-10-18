@@ -79,3 +79,24 @@ test('blank names are refused and customer details can be edited', async ({ page
   await dialog.getByRole('button', { name: 'Save' }).click();
   await expect(dialog.getByText('Enter an email like name@example.com')).toBeVisible();
 });
+
+test('the dashboard lists every customer alphabetically by last name, with other sorts', async ({ page }) => {
+  await loginAsStaff(page);
+  const tag = unique('Fictionalsort').split(' ')[1];
+  await createCustomer(page, `Aaron ${tag} Zimmer`, '555-010-7001');
+  await createCustomer(page, `Zoe ${tag} Adams`, '555-010-7002');
+
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: /Everyone, by last name/ })).toBeVisible();
+  await page.getByLabel('Search by name or phone').fill(tag);
+  const cards = page.locator('.results li');
+  await expect(cards).toHaveCount(2);
+  await expect(cards.nth(0)).toContainText('Adams');
+  await expect(cards.nth(0)).toContainText('ZA');
+  await expect(cards.nth(0)).toContainText('0 spec sheets');
+  await expect(cards.nth(0)).toContainText('0 balls');
+  await page.getByLabel('Sort by').selectOption('name');
+  await expect(cards.nth(0)).toContainText('Zimmer');
+  await page.getByLabel('Sort by').selectOption('created');
+  await expect(cards.nth(0)).toContainText('Adams');
+});

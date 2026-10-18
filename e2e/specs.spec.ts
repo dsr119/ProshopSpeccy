@@ -228,7 +228,14 @@ test('each span type keeps its own spans and the sheet shows the chosen one', as
   await expect(table.locator('tr', { hasText: 'Middle finger cut to cut' })).toContainText('4 3/8"');
   await expect(table.locator('tr', { hasText: 'Ring finger full span' })).toContainText('4 11/16"');
 
-  // Switching back to Cut to Cut shows the cut-to-cut span that was saved alongside.
+  // F / C / CTO switch the spans shown without editing, and leave the record alone.
+  await page.getByRole('button', { name: 'Cut to Cut', exact: true }).click();
+  await expect(page.locator('[data-span-heading]')).toHaveText('Cut to Cut');
+  await expect(slot(page, 'middle_cut_to_cut')).toHaveText('4 3/8');
+  await page.reload();
+  await expect(page.locator('[data-span-heading]')).toHaveText('Full Span');
+
+  // Switching back to Cut to Cut in the editor shows the cut-to-cut span that was saved alongside.
   await page.getByRole('link', { name: 'Edit measurements' }).click();
   await chooseSpanType(page, 'Cut to Cut');
   await expectSpan(page, 'middle_cut_to_cut', '4 3/8');
@@ -269,7 +276,16 @@ test('ball motion, one or two handed and who wrote the specs save with the sheet
   await page.locator('#field-axis_rotation').fill('45');
   await page.locator('#field-axis_tilt').fill('12');
   await page.locator('#field-speed').fill('17.5');
-  await page.locator('#field-pap').fill('5 1/2 over, 1/2 up');
+  // P.A.P opens wheels for horizontal and vertical, with Up or Down.
+  await page.locator('#field-pap').click();
+  const pap = page.getByRole('dialog', { name: 'P.A.P' });
+  await pap.getByRole('listbox', { name: 'Horizontal inches' }).getByRole('option', { name: '5', exact: true }).click();
+  await pap.getByRole('listbox', { name: 'Horizontal fraction' }).getByRole('option', { name: '1/2', exact: true }).click();
+  await pap.getByRole('listbox', { name: 'Vertical inches' }).getByRole('option', { name: '0', exact: true }).click();
+  await pap.getByRole('listbox', { name: 'Vertical fraction' }).getByRole('option', { name: '1/2', exact: true }).click();
+  await pap.getByRole('button', { name: 'Up' }).click();
+  await pap.getByRole('button', { name: 'Done' }).click();
+  await expect(page.locator('#field-pap')).toHaveAttribute('data-value', '5 1/2 over, 1/2 up');
   await page.locator('#field-written_by').fill('Fictional Pat');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/customers/${id}$`));
@@ -280,6 +296,9 @@ test('ball motion, one or two handed and who wrote the specs save with the sheet
   await expect(footer.locator('[data-field="rev_rate"]')).toContainText('450');
   await expect(footer.locator('[data-field="speed"]')).toContainText('17.5');
   await expect(footer.locator('[data-field="pap"]')).toContainText('5 1/2 over, 1/2 up');
+  await page.getByText('All measurements as text').click();
+  await expect(page.locator('.sheet-table tr', { hasText: 'P.A.P vertical' })).toContainText('1/2" Up');
+  await page.getByText('All measurements as text').click();
   await expect(footer.locator('[data-field="written_by"]')).toContainText('Fictional Pat');
 
   // Names used before are offered next time.

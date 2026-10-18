@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { parseMeasurement } from '../measurements/fraction';
 import {
   FIELD_BY_KEY,
@@ -10,6 +11,7 @@ import {
   SPAN_TYPE_ORDER,
   directionLabel,
   formatValue,
+  papText,
   isInterchangeable,
   isNotApplicable,
   parseDisplayDraft,
@@ -36,7 +38,7 @@ import {
   type ChoiceGroup,
   type OverlaySlot,
 } from './overlayConfig';
-import { ChoiceButtons, SlotControl, SpanTypeButtons, type SheetEditor } from './SheetControls';
+import { ChoiceButtons, PapControl, SlotControl, SpanTypeButtons, type SheetEditor } from './SheetControls';
 
 /** Boxes typed into directly in edit mode (the inserts); everything else is a scroll picker. */
 function isTyped(slot: OverlaySlot) {
@@ -144,7 +146,11 @@ interface SpecSheetProps {
   caption?: string;
 }
 
-export function SpecSheet({ display, editor, activeField, caption }: SpecSheetProps) {
+export function SpecSheet({ display: shown, editor, activeField, caption }: SpecSheetProps) {
+  // Outside edit mode F / C / CTO still switch which saved spans are shown, without changing the record.
+  const [viewSpan, setViewSpan] = useState<SpanType | null>(null);
+  const display: DisplayFn =
+    viewSpan && !editor ? (key) => (key === 'span_type' ? { state: 'value', text: SPAN_TYPE_LABELS[viewSpan] } : shown(key)) : shown;
   const spanType = shownSpanType(display);
   const slots = sheetSlots(display);
   const hasGrips = slots.some((s) => s.when === 'grips');
@@ -153,7 +159,7 @@ export function SpecSheet({ display, editor, activeField, caption }: SpecSheetPr
     <figure className="sheet-figure">
       <div
         className={`sheet${editor ? ' sheet--interactive' : ''}`}
-        role={editor ? 'group' : 'img'}
+        role="group"
         aria-label={caption ?? 'Fitting spec sheet. The full list of values is available as text below.'}
       >
         <SheetArtwork spanType={spanType} grips={hasGrips} choices={choices} />
@@ -194,7 +200,13 @@ export function SpecSheet({ display, editor, activeField, caption }: SpecSheetPr
             </span>
           );
         })}
-        {editor && display('span_type').state !== 'na' && <SpanTypeButtons editor={editor} current={spanType} />}
+        {display('span_type').state !== 'na' && (
+          <SpanTypeButtons
+            current={spanType}
+            onPick={(t) => (editor ? editor.setField('span_type', { text: t }) : setViewSpan(t))}
+            onFocus={() => editor?.onFocusField?.('span_type')}
+          />
+        )}
         {editor && choices.map(({ group, value }) => <ChoiceButtons key={group.field} group={group} value={value} editor={editor} />)}
       </div>
       <SheetFooter display={display} editor={editor} activeField={activeField} />
@@ -203,12 +215,39 @@ export function SpecSheet({ display, editor, activeField, caption }: SpecSheetPr
 }
 
 /** Ball motion and who wrote the specs, along the bottom of the sheet. */
-export const FOOTER_FIELDS: FieldKey[] = ['rev_rate', 'axis_rotation', 'axis_tilt', 'speed', 'pap', 'written_by'];
+export const FOOTER_FIELDS: Array<FieldKey | 'pap'> = ['rev_rate', 'axis_rotation', 'axis_tilt', 'speed', 'pap', 'written_by'];
+
+/** The P.A.P cell: horizontal and vertical together, picked on one set of wheels. */
+function PapCell({ display, editor, active }: { display: DisplayFn; editor?: SheetEditor; active: boolean }) {
+  const h = display('pap_horizontal');
+  const v = display('pap_vertical');
+  const state = h.state === 'invalid' || v.state === 'invalid' ? 'invalid' : h.state === 'value' || v.state === 'value' ? 'value' : 'empty';
+  const text = papText(
+    h.state === 'value' || h.state === 'invalid' ? h.text : null,
+    v.state === 'value' || v.state === 'invalid' ? v.text : null,
+    v.state === 'value' || v.state === 'invalid' ? v.dir : undefined,
+  );
+  return (
+    <div className={['sheet-footer__cell', `slot--${state}`, active ? 'slot--active' : ''].filter(Boolean).join(' ')} data-field="pap">
+      <dt>P.A.P</dt>
+      <dd>{editor ? <PapControl editor={editor} text={text} /> : state === 'empty' ? <span className="slot__empty">–</span> : text}</dd>
+    </div>
+  );
+}
 
 function SheetFooter({ display, editor, activeField }: { display: DisplayFn; editor?: SheetEditor; activeField?: FieldKey | null }) {
   return (
     <dl className="sheet-footer">
       {FOOTER_FIELDS.map((key) => {
+        if (key === 'pap')
+          return (
+            <PapCell
+              key={key}
+              display={display}
+              editor={editor}
+              active={activeField === 'pap_horizontal' || activeField === 'pap_vertical'}
+            />
+          );
         const f = FIELD_BY_KEY[key];
         const d = display(key);
         const unit = f.unit && f.unit !== 'in' ? f.unit : null;

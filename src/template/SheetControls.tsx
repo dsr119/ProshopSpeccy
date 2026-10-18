@@ -14,7 +14,10 @@ import {
   SPAN_TYPE_ORDER,
   SPAN_WHOLES,
   SPAN_FIELDS,
+  PAP_MAX,
   THUMB_INSERT_TYPES,
+  joinInches,
+  splitInches,
   decimalHint,
   gripNumber,
   isInterchangeable,
@@ -170,8 +173,8 @@ export function SlotControl({ slot, editor, label }: { slot: OverlaySlot; editor
   );
 }
 
-/** Tap targets over the F / C / CTO circles; each shows that span type's saved spans. */
-export function SpanTypeButtons({ editor, current }: { editor: SheetEditor; current: SpanType }) {
+/** Tap targets over the F / C / CTO circles; each shows that span type's saved spans, when editing or not. */
+export function SpanTypeButtons({ current, onPick, onFocus }: { current: SpanType; onPick: (t: SpanType) => void; onFocus?: () => void }) {
   const first = SPAN_PICKER.cx - ((SPAN_TYPE_ORDER.length - 1) * SPAN_PICKER.gap) / 2;
   const r = SPAN_PICKER.r + 3;
   return (
@@ -188,8 +191,8 @@ export function SpanTypeButtons({ editor, current }: { editor: SheetEditor; curr
             aria-label={SPAN_TYPE_LABELS[t]}
             aria-pressed={current === t}
             style={{ left: pctX(cx - r), top: pctY(SPAN_PICKER.y - r), width: pctX(2 * r), height: pctY(2 * r) }}
-            onClick={() => editor.setField('span_type', { text: t })}
-            onFocus={() => editor.onFocusField?.('span_type')}
+            onClick={() => onPick(t)}
+            onFocus={onFocus}
           />
         );
       })}
@@ -268,6 +271,80 @@ export function ChoiceButtons({ group, value, editor }: { group: ChoiceGroup; va
           onFocus={() => editor.onFocusField?.(group.field)}
         />
       ))}
+    </>
+  );
+}
+
+const wholes = (max: number) => Array.from({ length: max + 1 }, (_, i) => ({ value: String(i), label: String(i) }));
+const FRACTIONS = SPAN_FRACTIONS.map((f) => ({ value: f, label: f }));
+const PAP_COLUMNS: WheelColumn[] = [
+  { label: 'Horizontal inches', options: wholes(PAP_MAX) },
+  { label: 'Horizontal fraction', options: FRACTIONS },
+  { label: 'Vertical inches', options: wholes(2) },
+  { label: 'Vertical fraction', options: FRACTIONS },
+];
+
+/** The P.A.P box opens wheels for horizontal and vertical inches and fractions, with Up or Down. */
+export function PapControl({ editor, text }: { editor: SheetEditor; text: string }) {
+  const [open, setOpen] = useState(false);
+  const h = editor.draft.pap_horizontal;
+  const v = editor.draft.pap_vertical;
+  const [dir, setDir] = useState(v.dir);
+  const hs = splitInches(h.text);
+  const vs = splitInches(v.text);
+  const close = () => setOpen(false);
+  return (
+    <>
+      <button
+        type="button"
+        id="field-pap"
+        className="sheet-footer__button"
+        aria-haspopup="dialog"
+        aria-label="P.A.P"
+        data-control="pap_horizontal"
+        data-value={text}
+        onFocus={() => editor.onFocusField?.('pap_horizontal')}
+        onClick={() => {
+          setDir(v.dir);
+          setOpen(true);
+        }}
+      >
+        {text || <span className="slot__empty">–</span>}
+      </button>
+      {open &&
+        createPortal(
+          <WheelPicker
+            title="P.A.P"
+            columns={PAP_COLUMNS}
+            groups={[
+              { label: 'Horizontal', span: 2 },
+              { label: 'Vertical', span: 2 },
+            ]}
+            initial={[hs?.whole ?? '5', hs?.fraction ?? '0', vs?.whole ?? '0', vs?.fraction ?? '0']}
+            footer={
+              <div className="wheel-sheet__dirs" role="group" aria-label="Vertical direction">
+                {(['up', 'down'] as const).map((d) => (
+                  <button key={d} type="button" aria-pressed={dir === d} onClick={() => setDir(d)}>
+                    {d === 'up' ? 'Up' : 'Down'}
+                  </button>
+                ))}
+              </div>
+            }
+            onDone={([hw, hf, vw, vf]) => {
+              const vertical = joinInches(vw, vf, 2);
+              editor.setField('pap_horizontal', { text: joinInches(hw, hf, PAP_MAX) });
+              editor.setField('pap_vertical', { text: vertical, dir: vertical === '0' ? 'none' : dir || '' });
+              close();
+            }}
+            onClear={() => {
+              editor.setField('pap_horizontal', { text: '' });
+              editor.setField('pap_vertical', { text: '', dir: '' });
+              close();
+            }}
+            onClose={close}
+          />,
+          document.body,
+        )}
     </>
   );
 }
