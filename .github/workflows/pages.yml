@@ -30,6 +30,8 @@ jobs:
           # Public values only (same as .env.example). Never put a secret key here.
           VITE_SUPABASE_URL: https://bkvijjqhyiyfkuavmerh.supabase.co
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_Vba54XSri6vewRcBO8qDXQ_uinwbMOy
+          # New photo files go to Cloudflare R2 through the photo-files function.
+          VITE_PHOTO_STORE: r2
       # Pages has no single-page-app routing; serving index.html as the 404 page
       # lets links like /customers/<id> load the app.
       - run: cp dist/index.html dist/404.html

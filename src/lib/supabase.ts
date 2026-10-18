@@ -7,6 +7,9 @@ const publicKey = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? import.meta.
   | string
   | undefined;
 
+export const supabaseUrl = url;
+export const supabasePublicKey = publicKey;
+
 export const isConfigured = Boolean(url && publicKey);
 
 export const supabase = createClient(url || 'http://invalid.localhost', publicKey || 'missing-key', {

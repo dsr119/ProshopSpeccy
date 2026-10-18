@@ -81,3 +81,21 @@ there. Photos are shrunk on the device before upload (`src/lib/shrinkPhoto.ts`: 
 0.8, original kept when that isn't smaller), so a typical 2–4MB phone photo lands at a few hundred KB. When a sheet is
 finished, front and back are copied to the bowler's Photos and the queue copies are deleted, so each photo is stored
 once. Even so, about 3000 sheets is more than the Supabase free plan's 1GB of storage is likely to hold.
+
+### Photo files in Cloudflare R2
+
+To stay on free plans, new photo files go to the Cloudflare R2 bucket `proshop-photos` (10GB free, no download
+charges) instead of Supabase Storage (1GB free). Records stay in Supabase; `spec_photos.store` and
+`intake_items.store` say where each file is, so photos uploaded earlier keep working from Supabase Storage. R2 keys
+start with the old bucket name (`spec-photos/<shop>/<customer>/<photo>/<file>`, `intake-photos/<shop>/<item>/<file>`).
+
+The browser never holds an R2 key. The `photo-files` Edge Function (`supabase/functions/photo-files`, deployed with
+`verify_jwt` off because the publishable key is not a JWT) asks the database, as the caller, whether the keys are
+allowed (`public.r2_keys_allowed`), then returns links that expire after an hour: `get` to view, `put` to upload a
+new file, `delete` only for a file no record uses. Its secrets (`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`,
+`R2_ACCOUNT_ID`) are set in the Supabase dashboard. The bucket's CORS policy allows GET and PUT from the site.
+
+A typed-in paper sheet is not copied: the bowler's spec sheet record points at the queue's R2 file. The site build
+sets `VITE_PHOTO_STORE=r2`; local tests use Supabase Storage by default, and can run against the function with
+Deno and the local stack's S3 endpoint (`R2_ENDPOINT=http://127.0.0.1:54321/storage/v1/s3`, `R2_REGION=local`, a
+`proshop-photos` bucket, and `VITE_PHOTO_STORE=r2 VITE_PHOTO_FILES_URL=http://127.0.0.1:8000`).

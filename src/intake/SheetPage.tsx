@@ -179,7 +179,7 @@ export function SheetPage() {
 function SheetPhoto({ item }: { item: IntakeItem }) {
   const [side, setSide] = useState<'front' | 'back'>('front');
   const path = side === 'back' && item.back_path ? item.back_path : item.object_path;
-  const url = useAsync(() => intakePhotoUrl(path), [path]);
+  const url = useAsync(() => intakePhotoUrl(item, path), [path]);
   const [zoom, setZoom] = useState(1);
   const [turn, setTurn] = useState(0);
   return (
