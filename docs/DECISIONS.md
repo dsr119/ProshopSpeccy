@@ -64,5 +64,14 @@ the lock version (mismatch → HTTP 409 conflict with who saved), skip if nothin
 current pointer, bump the lock version. `restore_fit_revision` does the same with an old snapshot. Clients cannot write
 `fits` or `fit_revisions` directly, and revisions cannot be updated or deleted.
 
-No-thumb mode keeps any saved thumb and span values in the snapshot (shown as N/A on the sheet and as
-"saved, not applicable" in the text view); switching back to thumb-in shows them again.
+No-thumb mode keeps any saved thumb and span values in the snapshot, but the sheet, the text view and the editor leave
+the thumb and span parts out; switching back to thumb-in shows them again.
+
+### Paper sheet intake
+
+Backfilling paper sheets happens on a separate page, `/intake/` (its own Vite entry, `intake/index.html`, with hash
+routes so reloads work on GitHub Pages). The app has no link or route to it. Photos go to the private `intake-photos`
+bucket and the `intake_items` queue; `claim_next_intake` hands out the oldest waiting sheet (an unfinished claim goes
+back after an hour), `release_intake` puts one back or sets it aside as unreadable, and `complete_intake` records the
+customer and the copy of the photo saved to their Photos as a spec sheet. Queue rows change only through those
+functions.

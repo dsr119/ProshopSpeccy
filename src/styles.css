@@ -1401,3 +1401,166 @@ a:focus-visible {
   border-color: #3f9b5f;
   background: var(--ok-bg);
 }
+
+/* Paper sheet intake page (intake/index.html). */
+.intake__bar {
+  background: #2d3a4f;
+}
+.intake__bar,
+.intake__bar a,
+.intake__bar .linklike,
+.intake__bar .muted,
+.intake__bar .topbar__sub {
+  color: #fff;
+}
+.btn--big {
+  min-height: 56px;
+  padding: 0.8rem 1.4rem;
+  font-size: 1.05rem;
+}
+.intake-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.6rem;
+  margin: 1rem 0;
+}
+.intake-counts > div {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.8rem;
+}
+.intake-counts dt {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.intake-counts dd {
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--value);
+}
+.intake-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+.intake-actions > * {
+  flex: 1 1 220px;
+  text-align: center;
+}
+.intake-list ul,
+.intake-uploads,
+.intake-matches {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 1rem;
+}
+.intake-list li,
+.intake-uploads li,
+.intake-matches li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin-bottom: 0.4rem;
+}
+.intake-uploads li > span:first-child {
+  overflow-wrap: anywhere;
+}
+.intake-progress {
+  font-weight: 600;
+}
+.intake-step {
+  margin: 0.5rem 0;
+}
+.intake-bowler {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 560px;
+}
+.intake-bowler label {
+  display: grid;
+  gap: 0.25rem;
+}
+
+/* Typing in a sheet: the photo stays in view beside (iPad) or above (phone) the digital sheet. */
+.intake-work {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+.intake-photo {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #20262f;
+  padding: 0.4rem;
+}
+.intake-photo__tools {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+.intake-photo__frame {
+  overflow: auto;
+  height: 30vh;
+  background: #111;
+  border-radius: 6px;
+  -webkit-overflow-scrolling: touch;
+}
+.intake-photo__frame img {
+  display: block;
+  max-width: none;
+  transform-origin: center;
+}
+.intake-work__form {
+  min-width: 0;
+}
+.intake-work__form > .page {
+  padding-top: 0;
+}
+.intake-work__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem 0;
+}
+.intake-work__bar .breadcrumb {
+  margin: 0 auto 0 0;
+}
+.intake-work__form > .banner,
+.intake-work__form > .intake-step,
+.intake-work__form > .intake-bowler {
+  margin-left: 1rem;
+  margin-right: 1rem;
+}
+@media (min-width: 1000px) {
+  .intake-work {
+    grid-template-columns: minmax(340px, 42%) 1fr;
+  }
+  .intake-photo {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .intake-photo__frame {
+    flex: 1;
+    height: auto;
+  }
+}
+.intake-work .editor {
+  grid-template-columns: minmax(0, 1fr);
+}
+.intake-work .editor__sheet {
+  position: static;
+}
+.intake-work .editor__bar {
+  z-index: 30;
+}

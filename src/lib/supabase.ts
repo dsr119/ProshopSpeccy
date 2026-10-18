@@ -14,3 +14,4 @@ export const supabase = createClient(url || 'http://invalid.localhost', publicKe
 });
 
 export const PHOTO_BUCKET = 'spec-photos';
+export const INTAKE_BUCKET = 'intake-photos';

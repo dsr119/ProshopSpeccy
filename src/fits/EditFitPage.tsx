@@ -24,7 +24,7 @@ import { SpecSheet, displayFromDraft } from '../template/SpecSheet';
 import { getCustomer, type Customer } from '../customers/api';
 import { BowlerCard } from '../customers/BowlerCard';
 import { EditCustomerDialog } from '../customers/CustomerPage';
-import { getCurrentFit, listSpecAuthors, parseConflict, saveFit, type ConflictInfo, type CurrentFit } from './api';
+import { getCurrentFit, listSpecAuthors, parseConflict, saveFit, type ConflictInfo, type CurrentFit, type SaveResult } from './api';
 import { ChangeTable } from './HistoryPage';
 
 interface StoredDraft {
@@ -48,8 +48,18 @@ export function readStoredDraft(userId: string, customerId: string): StoredDraft
 /** Measurements kept in the record but not drawn on the sheet; they're edited under "More measurements". */
 const OFF_SHEET: FieldKey[] = ['middle_oval', 'ring_oval', 'middle_actual_cut', 'ring_actual_cut', 'thumb_oval', 'thumb_oval_angle'];
 
-export function EditFitPage() {
-  const { customerId = '' } = useParams();
+/** The editor used inside another page (the intake queue) instead of on its own route. */
+export interface EmbeddedEditor {
+  customerId: string;
+  /** Runs after a save; the editor shows any error it throws and keeps the values. */
+  onSaved: (result: SaveResult) => Promise<void>;
+  onCancel: () => void;
+  saveLabel?: string;
+}
+
+export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
+  const params = useParams();
+  const customerId = embed?.customerId ?? params.customerId ?? '';
   const { userId } = useMembership();
   const navigate = useNavigate();
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -178,6 +188,15 @@ export function EditFitPage() {
     setSaveError(null);
     try {
       const result = await saveFit(customerId, expectedLock, draftToSnapshot(draft), changeNote);
+      if (embed) {
+        // Saved: from here the only thing left is the embedding page's own step.
+        leaving.current = true;
+        discardStoredDraft();
+        setBaseDraft(draft);
+        setExpectedLock(result.lock_version);
+        await embed.onSaved(result);
+        return;
+      }
       leave(`/customers/${customerId}${result.created ? '' : '?nochange=1'}`);
     } catch (err) {
       const appErr = toAppError(err);
@@ -214,9 +233,11 @@ export function EditFitPage() {
 
   return (
     <main className="page page--wide">
-      <p className="breadcrumb no-print">
-        <Link to={`/customers/${customerId}`}>← {customer.name}</Link>
-      </p>
+      {!embed && (
+        <p className="breadcrumb no-print">
+          <Link to={`/customers/${customerId}`}>← {customer.name}</Link>
+        </p>
+      )}
       <BowlerCard
         customer={customer}
         date={formatDate(new Date().toISOString())}
@@ -335,13 +356,15 @@ export function EditFitPage() {
 
         <div className="editor__bar">
           <button type="submit" className="btn btn--primary" disabled={saving}>
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? 'Saving…' : (embed?.saveLabel ?? 'Save')}
           </button>
           <button
             type="button"
             className="btn"
             disabled={saving}
-            onClick={() => (dirty ? navigate(`/customers/${customerId}`) : leave(`/customers/${customerId}`))}
+            onClick={() =>
+              embed ? embed.onCancel() : dirty ? navigate(`/customers/${customerId}`) : leave(`/customers/${customerId}`)
+            }
           >
             Cancel
           </button>
