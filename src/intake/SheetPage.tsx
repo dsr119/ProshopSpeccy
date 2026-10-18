@@ -15,7 +15,7 @@ import {
   type CustomerInput,
   type CustomerSearchRow,
 } from '../customers/api';
-import { claimNext, finishItem, getItem, intakePhotoUrl, releaseItem, type CopiedPhotos, type IntakeItem } from './api';
+import { finishAndNext, getItem, intakePhotoUrl, preloadUpNext, releaseItem, type CopiedPhotos, type IntakeItem } from './api';
 import { appCustomerUrl } from './IntakeHome';
 
 const bowlerKey = (itemId: string) => `proshop:intake:bowler:${itemId}`;
@@ -52,6 +52,12 @@ export function SheetPage() {
     setCustomerId(readBowler(itemId));
     copied.current = {};
   }, [itemId]);
+
+  // While this sheet is typed in, the next one's photos download in the background.
+  const working = item.data?.status === 'working';
+  useEffect(() => {
+    if (working) preloadUpNext(itemId).catch(() => undefined);
+  }, [itemId, working]);
 
   function chooseBowler(id: string | null) {
     keepBowler(itemId, id);
@@ -149,9 +155,8 @@ export function SheetPage() {
                 saveLabel: 'Save and send to the app',
                 onCancel: () => chooseBowler(null),
                 onSaved: async (result) => {
-                  await finishItem(it, customerId, result.revision_id, name, copied.current);
+                  const next = await finishAndNext(it, customerId, result.revision_id, name, copied.current);
                   keepBowler(itemId, null);
-                  const next = await claimNext(name).catch(() => null);
                   navigate(next ? `/sheet/${next.id}` : '/?finished=1&empty=1');
                 },
               }}
