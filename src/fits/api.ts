@@ -75,6 +75,21 @@ export async function listRevisions(fitId: string): Promise<FitRevision[]> {
   ).map(upgrade);
 }
 
+/** Paper sheets the AI reader added after the current revision, not checked yet (newest first). */
+export async function listUncheckedSheets(fit: Fit, currentNumber: number): Promise<FitRevision[]> {
+  return (
+    unwrap(
+      await supabase
+        .from('fit_revisions')
+        .select('*')
+        .eq('fit_id', fit.id)
+        .eq('author_name', 'AI reader')
+        .gt('revision_number', currentNumber)
+        .order('revision_number', { ascending: false }),
+    ) as FitRevision[]
+  ).map(upgrade);
+}
+
 export async function getRevision(id: string): Promise<FitRevision> {
   return upgrade(unwrap(await supabase.from('fit_revisions').select('*').eq('id', id).single()) as FitRevision);
 }

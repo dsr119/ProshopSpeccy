@@ -8,7 +8,7 @@ import { useAsync } from '../lib/useAsync';
 import { Dialog, ErrorBanner, Notice, Spinner } from '../components/ui';
 import { HAND_LABELS, THUMB_MODE_LABELS, type Hand, type Snapshot, type ThumbMode } from '../measurements/schema';
 import { SheetTable, SpecSheet, displayFromSnapshot } from '../template/SpecSheet';
-import { getCurrentFit, isConfirmed, setFitConfirmed, type Fit } from '../fits/api';
+import { getCurrentFit, isConfirmed, listUncheckedSheets, setFitConfirmed, type Fit } from '../fits/api';
 import { listPhotos } from '../photos/api';
 import { PhotosPanel } from '../photos/PhotosPage';
 import { listBalls } from '../balls/api';
@@ -98,6 +98,12 @@ export function CustomerPage() {
   const fit = useAsync(() => getCurrentFit(customerId), [customerId]);
   const photos = useAsync(() => listPhotos(customerId), [customerId]);
   const balls = useAsync(() => listBalls(customerId), [customerId]);
+  const currentFit = fit.data?.fit ?? null;
+  const currentNumber = fit.data?.revision?.revision_number ?? 0;
+  const unchecked = useAsync(
+    async () => (currentFit ? listUncheckedSheets(currentFit, currentNumber) : []),
+    [currentFit?.id, currentNumber],
+  );
   const [enlarged, setEnlarged] = useState(false);
   const [editingDetails, setEditingDetails] = useState(false);
   const [removing, setRemoving] = useState(false);
@@ -213,6 +219,16 @@ export function CustomerPage() {
               {revision.revision_number}
             </p>
           )}
+
+          {(unchecked.data ?? []).map((r) => (
+            <Notice key={r.id} tone="warn">
+              <span>
+                Another paper sheet for this bowler was read by AI and is not checked yet (revision #{r.revision_number}).
+                Compare it with this sheet and the paper photo, and restore it if it is right.
+              </span>{' '}
+              <Link to={`/customers/${c.id}/history/${r.id}`}>Compare it</Link>
+            </Notice>
+          ))}
 
           {fit.loading ? (
             <Spinner />
