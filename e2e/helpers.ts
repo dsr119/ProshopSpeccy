@@ -117,9 +117,16 @@ export async function chooseGrips(page: Page, grips: 'Grips' | 'No Grips', type?
 
 /** Picks a name on the intake sign-in list; a name not on it is added by signing in as Admin first. */
 export async function intakeSignIn(page: Page, name: string) {
-  const pick = page.getByRole('list', { name: 'Your name' }).getByRole('button', { name, exact: true });
   await expect(page.getByRole('list', { name: 'Your name' })).toBeVisible();
-  if (name !== 'Admin' && (await pick.count()) === 0) {
+  // Admin is not on the list: the question mark opens a box to type it in.
+  if (name === 'Admin') {
+    await page.getByRole('button', { name: 'More' }).click();
+    await page.getByRole('textbox', { name: 'Code' }).fill('admin');
+    await page.getByRole('textbox', { name: 'Code' }).press('Enter');
+    return;
+  }
+  const pick = page.getByRole('list', { name: 'Your name' }).getByRole('button', { name, exact: true });
+  if ((await pick.count()) === 0) {
     await intakeSignIn(page, 'Admin');
     await page.getByLabel('Add a name').fill(name);
     await page.getByRole('button', { name: 'Add', exact: true }).click();

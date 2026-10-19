@@ -10,8 +10,9 @@ test('paper sheets go into the queue, get typed in, and land in the app with the
   await expect(page.locator('a[href*="intake"]')).toHaveCount(0);
 
   await page.goto('/intake/');
-  // Names are picked from a list, not typed.
+  // Names are picked from a list, not typed, and the page says nothing about admin.
   await expect(page.getByRole('textbox')).toHaveCount(0);
+  await expect(page.getByText(/admin/i)).toHaveCount(0);
   await intakeSignIn(page, 'Fictional Fran');
   await expect(page.getByRole('heading', { name: 'Paper spec sheets' })).toBeVisible();
   await expect(page.locator('[data-count="waiting"] dd')).not.toHaveText('–');
