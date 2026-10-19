@@ -89,9 +89,12 @@ export function SlotControl({ slot, editor, label }: { slot: OverlaySlot; editor
   }
 
   if (slot.style === 'pitch' && slot.signed) {
-    // One box per finger: minus is left, plus is right.
+    // One box per finger: minus is left, plus is right. A finger nearly always pitches toward its own side,
+    // so that way is listed first as plain amounts and the other way comes after.
     const steps = PITCH_AMOUNTS.slice(1);
-    const options = [...[...steps].reverse().map((a) => `-${a}`), '0', ...steps.map((a) => `+${a}`)];
+    const lean = slot.lean === 'right' ? '+' : '-';
+    const other = lean === '-' ? '+' : '-';
+    const options = ['0', ...steps.map((a) => `${lean}${a}`), ...steps.map((a) => `${other}${a}`)];
     const t = v.text.trim();
     const current = !t ? '' : isZero(t) || !v.dir || v.dir === 'none' ? t : `${v.dir === 'left' ? '-' : '+'}${t}`;
     return (
@@ -108,11 +111,20 @@ export function SlotControl({ slot, editor, label }: { slot: OverlaySlot; editor
         }}
       >
         <option value="">–</option>
-        {withLegacy(options, current).map((a) => (
+        {[...withLegacy(options, current).filter((a) => !options.includes(a)), ...options.filter((a) => !a.startsWith(other))].map((a) => (
           <option key={a} value={a}>
-            {a.startsWith('-') ? `Left ${inches(a.slice(1))}` : a.startsWith('+') ? `Right ${inches(a.slice(1))}` : inches(a)}
+            {a.startsWith(lean) ? `${a.startsWith('-') ? 'Left' : 'Right'} ${inches(a.slice(1))}` : inches(a)}
           </option>
         ))}
+        <optgroup label={`The other way (${other === '-' ? 'left' : 'right'})`}>
+          {options
+            .filter((a) => a.startsWith(other))
+            .map((a) => (
+              <option key={a} value={a}>
+                {`${other === '-' ? 'Left' : 'Right'} ${inches(a.slice(1))}`}
+              </option>
+            ))}
+        </optgroup>
       </select>
     );
   }

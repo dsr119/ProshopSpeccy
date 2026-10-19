@@ -12,6 +12,7 @@ import {
   SPAN_TYPE_HINTS,
   SPAN_TYPE_LABELS,
   THUMB_INSERT_TYPES,
+  THUMB_MODE_LABELS,
   snapshotToDraft,
   validateDraft,
   type Draft,
@@ -326,7 +327,7 @@ export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
             activeField={activeField}
             caption="Spec sheet. Tap a box to type or scroll its value."
           />
-          {noThumb && <p className="muted small">No-thumb: the thumb and span part of the sheet is hidden. Values saved earlier are kept.</p>}
+          {noThumb && <p className="muted small">No Thumb: the thumb and span part of the sheet is hidden. Values saved earlier are kept.</p>}
           {Object.keys(visibleErrors).length > 0 && (
             <ul className="sheet-errors" role="alert">
               {FIELDS.filter((f) => visibleErrors[f.key]).map((f) => (
@@ -577,8 +578,9 @@ function FieldControl({
           ]
         : def.kind === 'enum_thumb_mode'
           ? [
-              ['thumb_in', 'Thumb-in'],
-              ['no_thumb', 'No-thumb'],
+              ...(['fingertip', 'conventional', 'no_thumb'] as const).map((m) => [m, THUMB_MODE_LABELS[m]]),
+              // Fits saved before the grip was recorded keep plain thumb-in until someone picks one.
+              ...(value.text === 'thumb_in' ? [['thumb_in', THUMB_MODE_LABELS.thumb_in]] : []),
               ['', 'Not recorded'],
             ]
           : def.kind === 'enum_thumb_insert'

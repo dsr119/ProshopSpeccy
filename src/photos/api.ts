@@ -161,3 +161,19 @@ export async function attachSheetPhoto(input: AttachInput): Promise<SpecPhoto> {
 export async function updatePhoto(id: string, changes: { caption?: string | null; rotation?: number; confirmed?: boolean }): Promise<SpecPhoto> {
   return unwrap(await supabase.from('spec_photos').update(changes).eq('id', id).select('*').single()) as SpecPhoto;
 }
+
+/** Takes a photo off the bowler. It can be brought back with restorePhoto. */
+export async function removePhoto(id: string): Promise<void> {
+  const res = await supabase.rpc('remove_photo', { p_id: id });
+  if (res.error) throw toAppError(res.error);
+}
+
+export async function restorePhoto(id: string): Promise<void> {
+  const res = await supabase.rpc('restore_photo', { p_id: id });
+  if (res.error) throw toAppError(res.error);
+}
+
+/** The back of a paper spec sheet, where the bowler's balls are usually written. */
+export function isSheetBack(p: Pick<SpecPhoto, 'kind' | 'original_filename' | 'caption'>): boolean {
+  return p.kind === 'spec_sheet' && (/^paper-spec-sheet-back\./.test(p.original_filename ?? '') || /\bback\b/i.test(p.caption ?? ''));
+}

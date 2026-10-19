@@ -41,6 +41,8 @@ export interface OverlaySlot extends Rect {
   dir?: 'forward' | 'reverse' | 'left' | 'right';
   /** A lateral pitch box that shows left as minus and right as plus. */
   signed?: boolean;
+  /** The way a finger's lateral pitch nearly always goes: toward its own side of the sheet. */
+  lean?: 'left' | 'right';
   /** Draw a frame around the slot (boxes and pitch boxes). */
   framed?: boolean;
   /** Only on the sheet with or without finger grips. */
@@ -110,7 +112,7 @@ function fingerSlots(side: 'left' | 'right'): OverlaySlot[] {
     { field: `${f}_hole`, style: 'half', when: 'grips', ...half, y: HOLE_Y + 6 },
     { field: `${f}_hole`, style: 'half', when: 'no_grips', x: g.cx - 44, w: 88, h: 32, y: HOLE_Y - 16 },
     { field: `${f}_fr_pitch`, style: 'pitch', dir: 'reverse', framed: true, x: g.colX, y: 27, w: 78, h: 48 },
-    { field: `${f}_lateral_pitch`, style: 'pitch', signed: true, framed: true, x: g.colX, y: 91, w: 78, h: 48 },
+    { field: `${f}_lateral_pitch`, style: 'pitch', signed: true, lean: side, framed: true, x: g.colX, y: 91, w: 78, h: 48 },
     { field: `${f}_fr_pitch`, style: 'pitch', dir: 'forward', framed: true, x: g.colX, y: 155, w: 78, h: 48 },
     { field: `${f}_inserts`, style: 'line', x: g.cx - 52, y: 28, w: 104, h: 18 },
     { field: `${f}_cut_to_cut`, style: 'box', framed: true, x: side === 'left' ? 119 : 289, y: 262, w: 132, h: 72 },

@@ -10,7 +10,7 @@ test('mixed fractions, pitch directions, blank and zero save and reload in the r
   await page.getByRole('link', { name: 'Create digital specs' }).first().click();
 
   await page.getByLabel('Right-handed').check();
-  await page.getByLabel('Thumb-in').check();
+  await page.getByLabel('Conventional').check();
   await fill(page, 'middle_hole', '55/64');
   await fill(page, 'ring_actual_cut', '0');
   await fill(page, 'thumb_hole', '1 1/16');
@@ -51,7 +51,7 @@ test('mixed fractions, pitch directions, blank and zero save and reload in the r
   await expect(slot(page, 'bridge')).toHaveClass(/slot--empty/);
   await expect(slot(page, 'ring_hole')).toHaveClass(/slot--empty/);
   await expect(page.locator('.fit-identity')).toContainText('Right-handed');
-  await expect(page.locator('.fit-identity')).toContainText('Thumb-in');
+  await expect(page.locator('.fit-identity')).toContainText('Conventional');
   await expect(page.getByText(/Last saved .* by Sam Staff/)).toBeVisible();
 
   await page.getByText('All measurements as text').click();
@@ -187,20 +187,20 @@ test('left-handed no-thumb fits are labelled and keep earlier thumb values', asy
   const id = await createCustomer(page, unique('Fictional Lefty'));
   await page.goto(`/customers/${id}/edit`);
   await page.getByLabel('Left-handed').check();
-  await page.getByLabel('Thumb-in').check();
+  await page.getByLabel('Conventional').check();
   await fill(page, 'thumb_hole', '1');
   await fill(page, 'middle_cut_to_cut', '4');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(slot(page, 'thumb_hole')).toHaveText('1');
 
   await page.getByRole('link', { name: 'Edit measurements' }).click();
-  await page.getByLabel('No-thumb').check();
+  await page.getByLabel('No Thumb').check();
   await expect(page.getByText(/thumb and span part of the sheet is hidden/).first()).toBeVisible();
   await expect(page.locator('#field-thumb_hole')).toHaveCount(0);
   await expect(page.locator('#field-thumb_system_details')).toHaveCount(0);
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.locator('.fit-identity')).toContainText('Left-handed');
-  await expect(page.locator('.fit-identity')).toContainText('No-thumb');
+  await expect(page.locator('.fit-identity')).toContainText('No Thumb');
   // Without a thumb the sheet stops under the fingers: no thumb, spans or span type.
   await expect(page.locator('.sheet--no-thumb')).toBeVisible();
   await expect(slot(page, 'thumb_hole')).toHaveCount(0);
@@ -214,7 +214,7 @@ test('left-handed no-thumb fits are labelled and keep earlier thumb values', asy
 
   // Switching back to thumb-in brings the saved thumb values back.
   await page.getByRole('link', { name: 'Edit measurements' }).click();
-  await page.getByLabel('Thumb-in').check();
+  await page.getByLabel('Conventional').check();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(slot(page, 'thumb_hole')).toHaveText('1');
 });

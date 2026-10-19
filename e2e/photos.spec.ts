@@ -62,8 +62,9 @@ test('a customer can have an uploaded sheet photo before any digital specs', asy
 
   await page.goto('/');
   await page.getByLabel('Search by name or phone').fill(name);
-  await expect(page.locator('.results')).toContainText('1 spec sheet');
-  await expect(page.locator('.results')).toContainText('1 ball');
+  // Photos are not counted as spec sheets or balls; only digital sheets and entered balls are.
+  await expect(page.locator('.results')).toContainText('0 spec sheets');
+  await expect(page.locator('.results')).toContainText('0 balls');
   await expect(page.locator('.results')).toContainText('No digital specs');
 
   // Recorded files cannot be removed, and nonmembers cannot read them.

@@ -91,7 +91,7 @@ export type FieldKey = (typeof FIELD_KEYS)[number];
 export const FIELDS: FieldDef[] = [
   { key: 'hand', kind: 'enum_hand', label: 'Bowling hand', shortLabel: 'Hand', group: 'identity' },
   { key: 'play_style', kind: 'enum_play_style', label: 'One or two handed', shortLabel: 'Style', group: 'identity' },
-  { key: 'thumb_mode', kind: 'enum_thumb_mode', label: 'Thumb mode', shortLabel: 'Thumb mode', group: 'identity' },
+  { key: 'thumb_mode', kind: 'enum_thumb_mode', label: 'Grip', shortLabel: 'Grip', group: 'identity' },
   { key: 'fit_label', kind: 'text_short', label: 'Fit label (optional)', shortLabel: 'Label', group: 'identity' },
 
   { key: 'finger_grips', kind: 'enum_grips', label: 'Finger grips', shortLabel: 'Grips', group: 'fingers' },
@@ -162,7 +162,8 @@ export type LateralDir = 'left' | 'right' | 'none';
 export type ForwardDir = 'forward' | 'reverse' | 'none';
 export type VerticalDir = 'up' | 'down' | 'none';
 export type Hand = 'right' | 'left';
-export type ThumbMode = 'thumb_in' | 'no_thumb';
+/** The grip: fingertip or conventional with the thumb in, or no thumb. Plain thumb-in is from before the grip was recorded. */
+export type ThumbMode = 'fingertip' | 'conventional' | 'no_thumb' | 'thumb_in';
 export type SpanType = 'cut_to_cut' | 'full_span' | 'cut_to_outer';
 export type PlayStyle = 'one_handed' | 'two_handed';
 export const PLAY_STYLE_LABELS: Record<PlayStyle, string> = { one_handed: 'One Handed', two_handed: 'Two Handed' };
@@ -519,7 +520,12 @@ export function directionLabel(dir: string): string {
 }
 
 export const HAND_LABELS: Record<Hand, string> = { right: 'Right-handed', left: 'Left-handed' };
-export const THUMB_MODE_LABELS: Record<ThumbMode, string> = { thumb_in: 'Thumb-in', no_thumb: 'No-thumb' };
+export const THUMB_MODE_LABELS: Record<ThumbMode, string> = {
+  fingertip: 'Finger Tip',
+  conventional: 'Conventional',
+  no_thumb: 'No Thumb',
+  thumb_in: 'Thumb-in',
+};
 export const SPAN_TYPE_LABELS: Record<SpanType, string> = {
   full_span: 'Full Span',
   cut_to_cut: 'Cut to Cut',
