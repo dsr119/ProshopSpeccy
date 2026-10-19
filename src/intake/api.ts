@@ -1,4 +1,5 @@
 import { INTAKE_BUCKET, supabase } from '../lib/supabase';
+import { FIELD_BY_KEY, type Draft, type FieldKey } from '../measurements/schema';
 import { AppError, toAppError, unwrap } from '../lib/errors';
 import { ACCEPTED_TYPES, attachSheetPhoto, checkPhotoFile, uploadPhoto } from '../photos/api';
 import { shrinkPhoto } from '../lib/shrinkPhoto';
@@ -33,6 +34,37 @@ export interface IntakeItem {
   read_name?: string | null;
   read_phone?: string | null;
   read_unsure?: boolean | null;
+  /** Measurements read off the photo by AI: field texts and pitch directions, and keys that were hard to read. */
+  read_sheet?: { fields: Record<string, { text: string; dir: string }>; unsure: string[] } | null;
+}
+
+const ENUMS: Partial<Record<FieldKey, readonly string[]>> = {
+  hand: ['right', 'left'],
+  thumb_mode: ['thumb_in', 'no_thumb'],
+  span_type: ['cut_to_cut', 'full_span', 'cut_to_outer'],
+};
+const DIRS: Partial<Record<string, readonly string[]>> = {
+  pitch_lateral: ['left', 'right', 'none'],
+  pitch_fr: ['forward', 'reverse', 'none'],
+  pitch_ud: ['up', 'down', 'none'],
+};
+
+/** The AI reading of a sheet as values for the digital sheet, keeping only known fields and allowed choices. */
+export function readingDraft(item: IntakeItem): { draft: Partial<Draft>; unsure: string[] } | undefined {
+  const fields = item.read_sheet?.fields;
+  if (!fields) return undefined;
+  const draft: Partial<Draft> = {};
+  for (const [key, value] of Object.entries(fields)) {
+    const def = FIELD_BY_KEY[key as FieldKey];
+    if (!def || typeof value?.text !== 'string' || !value.text.trim()) continue;
+    const text = value.text.trim();
+    const allowed = ENUMS[def.key];
+    if (allowed && !allowed.includes(text)) continue;
+    const dirs = DIRS[def.kind];
+    const dir = dirs && dirs.includes(value.dir) ? value.dir : '';
+    draft[def.key] = { text, dir };
+  }
+  return { draft, unsure: item.read_sheet?.unsure ?? [] };
 }
 
 export type IntakeCounts = Record<IntakeStatus, number>;

@@ -59,6 +59,8 @@ export interface EmbeddedEditor {
   onSaved: (result: SaveResult) => Promise<void>;
   onCancel: () => void;
   saveLabel?: string;
+  /** Values read off the paper sheet photo; they fill boxes the saved specs leave empty. */
+  prefill?: { draft: Partial<Draft>; unsure: string[] };
 }
 
 export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
@@ -83,6 +85,8 @@ export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
   const [authors, setAuthors] = useState<string[]>([]);
   const [balls, setBalls] = useState<BallDraft[]>([]);
   const [baseBalls, setBaseBalls] = useState<BallDraft[]>([]);
+  const [suggested, setSuggested] = useState<Partial<Draft>>({});
+  const prefill = useRef(embed?.prefill);
 
   useEffect(() => {
     listSpecAuthors()
@@ -112,7 +116,11 @@ export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
         setChangeNote(stored.changeNote);
         setRestoredDraft(!draftsEqual(stored.draft, saved) || (!!stored.balls && !ballsEqual(stored.balls, savedBalls)));
       } else {
-        setDraft(saved);
+        const filled = Object.fromEntries(
+          Object.entries(prefill.current?.draft ?? {}).filter(([k, v]) => v && v.text && !saved[k as FieldKey]?.text.trim()),
+        ) as Partial<Draft>;
+        setSuggested(filled);
+        setDraft({ ...saved, ...filled });
         setExpectedLock(f.fit?.lock_version ?? 0);
       }
     } catch (e) {
@@ -317,6 +325,14 @@ export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
           </button>
         </Notice>
       )}
+
+      <SuggestedValues
+        suggested={suggested}
+        draft={draft}
+        unsure={prefill.current?.unsure ?? []}
+        errors={errors}
+        onPick={focusField}
+      />
 
       <form className="editor" onSubmit={save} noValidate>
         <div className="editor__sheet">
@@ -640,5 +656,46 @@ function FieldControl({
         </span>
       )}
     </div>
+  );
+}
+
+/** Boxes filled from the paper sheet photo that nobody has changed yet, to check one by one. */
+function SuggestedValues({
+  suggested,
+  draft,
+  unsure,
+  errors,
+  onPick,
+}: {
+  suggested: Partial<Draft>;
+  draft: Draft;
+  unsure: string[];
+  errors: DraftErrors;
+  onPick: (key: FieldKey) => void;
+}) {
+  const left = FIELDS.filter((f) => {
+    const s = suggested[f.key];
+    return s && draft[f.key].text === s.text && draft[f.key].dir === s.dir;
+  });
+  if (!left.length) return null;
+  return (
+    <Notice tone="warn">
+      <p>
+        <strong>Read off the photo by AI.</strong> Check each of these against the paper sheet. Changing a box takes it off this list.
+      </p>
+      <ul className="sheet-errors">
+        {left.map((f) => (
+          <li key={f.key}>
+            <button type="button" className="linklike" onClick={() => onPick(f.key)}>
+              {f.label}
+            </button>
+            : {draft[f.key].text}
+            {draft[f.key].dir ? ` ${draft[f.key].dir}` : ''}
+            {unsure.includes(f.key) && <span className="field-error"> (hard to read)</span>}
+            {errors[f.key] && <span className="field-error"> ({errors[f.key]})</span>}
+          </li>
+        ))}
+      </ul>
+    </Notice>
   );
 }
