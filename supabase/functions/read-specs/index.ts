@@ -1,11 +1,13 @@
 // Reads the whole paper spec sheet (pitches, hole and grip sizes, spans, thumb,
 // notes) off sheet photos in the intake queue with Claude, following the way
 // the shop reads its sheets (Doug's walkthrough, with his example sheet shown
-// to the model each time). Saves the reading on the sheet's read_sheet for a
-// person to review; it never changes the sheet's place in the queue.
+// to the model each time). Saves the reading, with the model's confidence, on
+// the sheet's read_sheet; it never changes the sheet's place in the queue.
+// private.file_ai_read later files the confident readings into the app.
 //
 // POST {"ids": [...]} reads those sheets (1 to 25). POST {"limit": n} reads up
-// to n sheets that have no reading yet, oldest first. Either may pass "model".
+// to n sheets in the queue that have no reading of this version yet and no
+// review of an older one, oldest first. Either may pass "model".
 // GET shows whether the key is set.
 //
 // Secrets: ANTHROPIC_API_KEY, plus the R2 ones photo-files uses. Optional:
@@ -18,7 +20,7 @@ import Anthropic from 'npm:@anthropic-ai/sdk@0.131.0';
 const AT_ONCE = 5;
 const MODELS = ['claude-sonnet-5-5', 'claude-opus-5-5'];
 /** Saved with each reading so the review page knows which instructions made it. */
-const VERSION = 2;
+const VERSION = 4;
 
 // Doug's walkthrough sheet (Frank Alu), shown to the model as a worked example.
 const EXAMPLE_ID = 'b9b0e013-e7ec-4dc6-aa26-35f996c79f05';
@@ -47,8 +49,8 @@ const FIELDS: Record<string, string> = {
   thumb_mode: '"fingertip", "conventional" or "no_thumb" (the GRIP line: Finger Tip / Conventional / No Thumb)',
   finger_grips: '"grips" when the finger holes have grips (a grip size or Lift/insert written), "no_grips" for plain drilled holes',
   grip_type: '"std" or "vaccu", only if written',
-  middle_grip_brand: '"Turbo", "Vise" or "Other", only if a brand is written for the middle finger grip',
-  ring_grip_brand: '"Turbo", "Vise" or "Other", only if a brand is written for the ring finger grip',
+  middle_grip_brand: '"Turbo", "Vise" or "Other", only if a brand is written or marked for the middle finger grip',
+  ring_grip_brand: '"Turbo", "Vise" or "Other", only if a brand is written or marked for the ring finger grip',
   middle_hole: 'middle finger hole size',
   middle_grip_size: 'middle finger grip size',
   middle_inserts: 'middle finger insert: "Lifts", "Oval Mesh" or "Oval No Mesh"',
@@ -86,6 +88,8 @@ Return:
 - needs_review: true when any value could not be read or the sheet is incomplete.
 - review_reasons: a short plain sentence for each problem, like "Right finger forward/reverse pitch can't be read".
 - unsure: the keys (or "name"/"phone") whose value was hard to read or is a guess.
+- confidence: a whole number from 0 to 100, your honest estimate of the percent chance that the name, the phone and every value in fields are all exactly what the paper says (after the rules below) and that nothing written on the sheet was left out. Each unsure value, each value you couldn't make out, and a messy or partly hidden sheet should lower it. Don't round up.
+- value_accuracy: a whole number from 0 to 100, your honest estimate of the percent of the values you entered (name, phone and each entry in fields) that are exactly right.
 
 Keys:
 ${Object.entries(FIELDS).map(([k, v]) => `- ${k}: ${v}`).join('\n')}
@@ -93,7 +97,7 @@ ${Object.entries(FIELDS).map(([k, v]) => `- ${k}: ${v}`).join('\n')}
 How the shop reads a sheet, in order:
 1. Name and phone at the top. No phone written: phone is "". Note the bowling hand (the marked LEFT HAND / RIGHT HAND circle).
 2. The two upper circles are the finger holes. The LEFT circle on the paper is the middle finger and the RIGHT circle is the ring finger, whatever the bowling hand. Each circle holds a hole size and a grip size, usually hole on top and grip below, but people sometimes swap them. If one of the two numbers is 1 1/32, 31/32 or 7/8, that is almost always the hole size and the other number is the grip size.
-3. Grip sizes are often written as just the numerator: "27" means 27/32, "29" means 29/32. Write them as the fraction ("27/32"). The word "Lift" (or "Lifts", "L") next to a grip size means the insert is Lifts: middle_inserts / ring_inserts "Lifts", and finger_grips "grips".
+3. Grip sizes are often written as just the numerator: "27" means 27/32, "29" means 29/32. Write them as the fraction ("27/32"). The word "Lift" (or "Lifts", "L") next to a grip size means the insert is Lifts: middle_inserts / ring_inserts "Lifts", and finger_grips "grips". A grip brand written or marked for the fingers (Turbo, Vise) also means finger_grips "grips", with that brand in middle_grip_brand and ring_grip_brand; "Standard" or "STD" there means grip_type "std".
 4. A circle with only one size: put that size where it belongs (a hole size if it is 1 1/32, 31/32 or 7/8, otherwise the grip size), and set needs_review with the reason that the circle is incomplete.
 5. Pitches are drawn as a small cross (+) beside each circle with arrows and amounts. The cross beside the left finger circle is the middle finger, beside the right finger circle the ring finger, beside the lower circle the thumb. An amount by a sideways arrow is lateral pitch toward that arrow ("left" or "right"). An amount by the DOWN arrow is REVERSE pitch; by the UP arrow, FORWARD pitch. A plain "0" on an axis is 0 with dir "". Boxes labeled FORWARD PITCH / REVERSE PITCH on other forms say so directly. If an amount can't be made out, leave that key out and set needs_review.
 6. The lower circle is the thumb: the hole size, and the thumb option (slug or insert). "No Slug" means no thumb option: leave thumb_insert_type out. A slug size goes in thumb_od.
@@ -132,9 +136,11 @@ const EXAMPLE_ANSWER = {
   needs_review: true,
   review_reasons: ["Ring finger forward/reverse pitch by the down arrow is written over and can't be read"],
   unsure: ['ring_fr_pitch'],
+  confidence: 55,
+  value_accuracy: 93,
 };
 
-const EXAMPLE_NOTE = `Above is an example sheet read the shop's way. "No Slug" is in the thumb circle, so there is no thumb option. Nothing is written in NOTES, OVAL INFO, WGT or P.A.P., so they are left out. The reading:
+const EXAMPLE_NOTE = `Above is an example sheet read the shop's way. "No Slug" is in the thumb circle, so there is no thumb option. Nothing is written in NOTES, OVAL INFO, WGT or P.A.P., so they are left out. One pitch can't be read, so the confidence that the whole sheet is right is low, while most single values are surely right. The reading:
 ${JSON.stringify(EXAMPLE_ANSWER, null, 1)}`;
 
 const SCHEMA = {
@@ -159,8 +165,10 @@ const SCHEMA = {
     needs_review: { type: 'boolean' },
     review_reasons: { type: 'array', items: { type: 'string' } },
     unsure: { type: 'array', items: { type: 'string' } },
+    confidence: { type: 'integer' },
+    value_accuracy: { type: 'integer' },
   },
-  required: ['name', 'phone', 'fields', 'needs_review', 'review_reasons', 'unsure'],
+  required: ['name', 'phone', 'fields', 'needs_review', 'review_reasons', 'unsure', 'confidence', 'value_accuracy'],
   additionalProperties: false,
 };
 
@@ -171,6 +179,8 @@ type Reading = {
   needs_review: boolean;
   review_reasons: string[];
   unsure: string[];
+  confidence: number;
+  value_accuracy: number;
 };
 
 Deno.serve(async (req) => {
@@ -234,7 +244,15 @@ Deno.serve(async (req) => {
     .is('removed_at', null)
     .eq('store', 'r2')
     .neq('id', EXAMPLE_ID);
-  query = ids ? query.in('id', ids as string[]) : query.neq('status', 'done').is('read_sheet', null).order('created_at').order('id').limit(limit);
+  query = ids
+    ? query.in('id', ids as string[])
+    : query
+        .eq('status', 'waiting')
+        .is('read_review', null)
+        .or(`read_sheet.is.null,read_sheet->>v.is.null,read_sheet->>v.neq.${VERSION}`)
+        .order('created_at')
+        .order('id')
+        .limit(limit);
   const picked = await query;
   if (picked.error) return reply(502, { error: picked.error.message });
 
