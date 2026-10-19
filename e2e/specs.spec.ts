@@ -288,6 +288,9 @@ test('grips add a grip type and grip sizes, and limit the finger holes', async (
   // Grips are Turbo until another brand is picked; Other asks for the brand in Notes.
   await expect(page.locator('#field-middle_grip_brand')).toHaveValue('Turbo');
   await expect(page.locator('#field-ring_grip_brand')).toHaveValue('Turbo');
+  // Grip holes start at 31/32.
+  await expect(page.locator('#field-middle_hole')).toHaveValue('31/32');
+  await expect(page.locator('#field-ring_hole')).toHaveValue('31/32');
   await page.locator('#field-ring_grip_brand').selectOption('Other');
   await expect(page.getByText('Grip brand is Other')).toBeVisible();
   await page.locator('#field-middle_inserts').selectOption('Oval No Mesh');

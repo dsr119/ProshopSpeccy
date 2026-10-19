@@ -3,12 +3,13 @@
 // one, find or add the bowler and type the sheet into the digital spec sheet.
 // Finished sheets are in the app like any other; the app has no way into here.
 
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { Link, Outlet, RouterProvider, createHashRouter } from 'react-router-dom';
 import { AuthProvider, useAuth } from '../lib/auth';
 import { isConfigured } from '../lib/supabase';
-import { Notice, Spinner } from '../components/ui';
-import { readWorkerName, saveWorkerName } from './api';
+import { ErrorBanner, Notice, Spinner } from '../components/ui';
+import { useAsync } from '../lib/useAsync';
+import { ADMIN_NAME, listIntakeNames, readWorkerName, saveWorkerName } from './api';
 import { IntakeHome } from './IntakeHome';
 import { AddPhotosPage } from './AddPhotosPage';
 import { SheetPage } from './SheetPage';
@@ -26,24 +27,26 @@ export function useWorkerName(): [string, (name: string) => void] {
 }
 
 function NamePrompt({ onDone }: { onDone: (name: string) => void }) {
-  const [value, setValue] = useState('');
-  function submit(e: FormEvent) {
-    e.preventDefault();
-    if (value.trim()) onDone(value);
-  }
+  const names = useAsync(listIntakeNames, []);
   return (
     <main className="page page--narrow">
       <h1>Spec sheet intake</h1>
-      <form className="form" onSubmit={submit}>
-        <label>
-          Your name
-          <input value={value} maxLength={120} autoFocus onChange={(e) => setValue(e.target.value)} />
-        </label>
-        <p className="muted small">It's shown next to the sheets you add and type in. This device remembers it.</p>
-        <button type="submit" className="btn btn--primary" disabled={!value.trim()}>
-          Continue
-        </button>
-      </form>
+      <h2 className="intake-names__title">Who are you?</h2>
+      <ErrorBanner error={names.error} onRetry={names.reload} />
+      {names.loading ? (
+        <Spinner />
+      ) : (
+        <ul className="intake-names" aria-label="Your name">
+          {[...(names.data ?? []), ADMIN_NAME].map((n) => (
+            <li key={n}>
+              <button type="button" className={`btn btn--big${n === ADMIN_NAME ? '' : ' btn--primary'}`} onClick={() => onDone(n)}>
+                {n}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="muted small">Your name is shown next to the sheets you add and type in. This device remembers it. Not on the list? Ask whoever signs in as Admin to add you.</p>
     </main>
   );
 }

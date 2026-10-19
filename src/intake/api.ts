@@ -366,8 +366,21 @@ export async function getPeopleStats(): Promise<PersonStats[]> {
   }));
 }
 
-/** Typing "admin" as your name shows everyone's counts on the queue page. */
+/** Signing in as "admin" shows everyone's counts on the queue page and lets you add names to the list. */
 export const isAdminName = (name: string) => name.trim().toLowerCase() === 'admin';
+export const ADMIN_NAME = 'Admin';
+
+/** The names people pick from to sign in on the intake page, A to Z. */
+export async function listIntakeNames(): Promise<string[]> {
+  const rows = unwrap(await supabase.from('intake_names').select('name').order('name'));
+  return (rows as Array<{ name: string }>).map((r) => r.name);
+}
+
+export async function addIntakeName(shopId: string, name: string): Promise<string> {
+  const res = await supabase.rpc('add_intake_name', { p_shop_id: shopId, p_name: name });
+  if (res.error) throw toAppError(res.error);
+  return (res.data as { name: string }).name;
+}
 
 const NAME_KEY = 'proshop:intake:name';
 

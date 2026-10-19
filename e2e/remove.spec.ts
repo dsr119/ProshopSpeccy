@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
-import { createCustomer, loginAsStaff, unique } from './helpers';
+import { createCustomer, intakeSignIn, loginAsStaff, unique } from './helpers';
 
 const SHEET = { mimeType: 'image/png', buffer: readFileSync('public/assets/specSheet550wide.png') };
 
@@ -33,8 +33,8 @@ test('a bowler can be deleted, undone, and brought back from the deleted list', 
 test('a queue sheet can be deleted and brought back', async ({ page }) => {
   await loginAsStaff(page);
   await page.goto('/intake/');
-  await page.getByLabel('Your name').fill(unique('Fictional Deleter'));
-  await page.getByRole('button', { name: 'Continue' }).click();
+  // A new name is added to the sign-in list by the admin, then picked.
+  await intakeSignIn(page, unique('Fictional Deleter'));
   await expect(page.locator('[data-count="waiting"] dd')).not.toHaveText('–');
   const waiting = () => page.locator('[data-count="waiting"] dd');
   const before = Number((await waiting().textContent())?.replace(/\D/g, '') || 0);

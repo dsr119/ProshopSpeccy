@@ -42,6 +42,11 @@ end $$;
 insert into public.shops (id, name)
 values ('00000000-0000-4000-8000-00000000005a', 'Demo Lanes Pro Shop (fictional)');
 
+-- Fictional names to pick from on the intake page.
+insert into public.intake_names (shop_id, name) values
+  ('00000000-0000-4000-8000-00000000005a', 'Fictional Fran'),
+  ('00000000-0000-4000-8000-00000000005a', 'Fictional Pat');
+
 insert into public.staff_memberships (shop_id, user_id, role, display_name, email) values
   ('00000000-0000-4000-8000-00000000005a', '00000000-0000-4000-8000-0000000000a1', 'admin', 'Alex Admin', 'admin@example.test'),
   ('00000000-0000-4000-8000-00000000005a', '00000000-0000-4000-8000-0000000000a2', 'staff', 'Sam Staff', 'staff@example.test'),

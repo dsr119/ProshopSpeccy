@@ -1774,3 +1774,30 @@ a:focus-visible {
   outline: 1px dashed rgba(30, 64, 175, 0.45);
   outline-offset: -1px;
 }
+/* Intake sign-in: one big button per name. */
+.intake-names {
+  list-style: none;
+  margin: 0.5rem 0 1rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.6rem;
+}
+.intake-names .btn {
+  width: 100%;
+}
+.intake-names__title {
+  font-size: 1.1rem;
+  margin: 0.5rem 0 0;
+}
+.intake-names-admin__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+.intake-names-admin__form label {
+  display: grid;
+  gap: 0.25rem;
+  flex: 1 1 14rem;
+}
