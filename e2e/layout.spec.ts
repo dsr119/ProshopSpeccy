@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createCustomer, fillField, loginAsStaff, unique } from './helpers';
+import { createCustomer, fillField, loginAsStaff, pickWheel, unique } from './helpers';
 
 // Long but valid values, to prove nothing clips or overlaps.
 const LONG: Record<string, string | [string, string]> = {
@@ -137,7 +137,7 @@ test('printing warns when there are unsaved edits', async ({ page }) => {
   await loginAsStaff(page);
   const id = await seedLongValues(page);
   await page.goto(`/customers/${id}/edit`);
-  await page.locator('#field-middle_hole').selectOption('1/2');
+  await pickWheel(page, 'field-middle_hole', '1/2');
   await page.goto(`/customers/${id}/print`);
   await expect(page.getByText(/Printing uses the last saved values/)).toBeVisible();
   await expect(page.locator('.print-sheet [data-field="middle_hole"]')).toHaveText('1 15/64');

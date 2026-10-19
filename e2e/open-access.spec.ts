@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
-import { createCustomer, unique } from './helpers';
+import { createCustomer, pickWheel, unique } from './helpers';
 
 // Open-link mode: the shop is switched on directly in the local database
 // (as the owner would in the SQL editor), then used without signing in.
@@ -22,7 +22,7 @@ test('with the open link on, anyone can add a customer, save specs and upload a 
 
   const id = await createCustomer(page, unique('Fictional Open Link'));
   await page.getByRole('link', { name: 'Create digital specs' }).first().click();
-  await page.locator('#field-middle_hole').selectOption('3/4');
+  await pickWheel(page, 'field-middle_hole', '3/4');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/customers/${id}$`));
   await page.goto(`/customers/${id}/history`);

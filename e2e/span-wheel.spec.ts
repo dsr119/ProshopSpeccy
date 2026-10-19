@@ -8,8 +8,8 @@ test('a span box opens two wheels, inches and thirty-seconds, that pick by scrol
   await chooseSpanType(page, 'Cut to Cut');
   await page.locator('#field-middle_cut_to_cut').click();
   // Scroll the fraction wheel to 3/8 (12/32) and the inches wheel to 3.
-  await page.getByRole('listbox', { name: 'Fraction' }).evaluate((el) => (el.scrollTop = 12 * 44));
-  await page.getByRole('listbox', { name: 'Inches' }).evaluate((el) => (el.scrollTop = 1 * 44));
+  await page.getByRole('listbox', { name: 'Fraction' }).evaluate((el) => (el.scrollTop = 12 * 32));
+  await page.getByRole('listbox', { name: 'Inches' }).evaluate((el) => (el.scrollTop = 1 * 32));
   await page.waitForTimeout(400);
   await page.getByRole('button', { name: 'Done' }).click();
   await expect(page.locator('#field-middle_cut_to_cut')).toHaveAttribute('data-value', '3 3/8');
