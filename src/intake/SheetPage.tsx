@@ -167,7 +167,7 @@ export function SheetPage() {
             />
           </>
         ) : (
-          <FindBowler onChoose={chooseBowler} />
+          <FindBowler key={it.id} onChoose={chooseBowler} suggested={it} />
         )}
       </div>
 
@@ -246,9 +246,11 @@ function SheetPhoto({ item }: { item: IntakeItem }) {
 }
 
 /** Step 1: find the bowler on the sheet, or add them. */
-function FindBowler({ onChoose }: { onChoose: (customerId: string) => void }) {
+function FindBowler({ onChoose, suggested }: { onChoose: (customerId: string) => void; suggested: IntakeItem }) {
   const { shop_id } = useMembership();
-  const [query, setQuery] = useState('');
+  const readName = suggested.read_name ?? '';
+  const readPhone = suggested.read_phone ?? '';
+  const [query, setQuery] = useState(readName || readPhone);
   const [rows, setRows] = useState<CustomerSearchRow[] | null>(null);
   const [adding, setAdding] = useState(false);
   const [value, setValue] = useState<CustomerInput>(EMPTY_CUSTOMER);
@@ -315,6 +317,12 @@ function FindBowler({ onChoose }: { onChoose: (customerId: string) => void }) {
       <p className="intake-step">
         <strong>1. Find the bowler.</strong> They may already be in the app.
       </p>
+      {(readName || readPhone) && (
+        <p className="muted small">
+          Read off the photo: <strong>{[readName, readPhone].filter(Boolean).join(' · ')}</strong>
+          {suggested.read_unsure ? ' (hard to read, check it)' : ' (check it against the sheet)'}
+        </p>
+      )}
       <label>
         Name or phone on the sheet
         <input type="search" value={query} autoFocus onChange={(e) => setQuery(e.target.value)} />
@@ -340,7 +348,12 @@ function FindBowler({ onChoose }: { onChoose: (customerId: string) => void }) {
         type="button"
         className="btn btn--primary"
         onClick={() => {
-          setValue({ ...EMPTY_CUSTOMER, name: /\d{3}/.test(query) ? '' : query.trim(), phone: /\d{3}/.test(query) ? query.trim() : '' });
+          const typedPhone = /\d{3}/.test(query);
+          setValue({
+            ...EMPTY_CUSTOMER,
+            name: typedPhone ? readName : query.trim(),
+            phone: typedPhone ? query.trim() : readPhone,
+          });
           setAdding(true);
         }}
       >

@@ -419,3 +419,6 @@ enabled = true
 # accepts the publishable key (which is not a JWT) as well as signed-in users.
 [functions.photo-files]
 verify_jwt = false
+
+[functions.read-sheets]
+verify_jwt = false
