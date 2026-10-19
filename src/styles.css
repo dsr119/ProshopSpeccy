@@ -1707,3 +1707,30 @@ a:focus-visible {
   flex-wrap: wrap;
   gap: 0.4rem;
 }
+
+/* Pass reasons: big tap targets in two columns. */
+.pass-reasons {
+  border: 0;
+  padding: 0;
+  margin: 0 0 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.pass-reasons legend {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.pass-reason {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border, #ccd);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.pass-reason.is-on {
+  border-color: var(--accent, #2457c5);
+  background: var(--accent-soft, #eaf0fc);
+}

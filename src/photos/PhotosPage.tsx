@@ -2,9 +2,23 @@ import { useEffect, useState } from 'react';
 import { Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { toAppError, type AppError } from '../lib/errors';
 import { formatDateTime } from '../lib/format';
-import { ErrorBanner, Notice } from '../components/ui';
+import { Dialog, ErrorBanner, Notice } from '../components/ui';
 import type { Customer } from '../customers/api';
-import { PHOTO_KIND_LABELS, checkPhotoFile, photoUrls, updatePhoto, uploadPhoto, type PhotoKind, type SpecPhoto } from './api';
+import { ballToDraft, ballsEqual, listBalls, saveBalls, validateBalls, type BallDraft } from '../balls/api';
+import { BallsEditor } from '../balls/BallsSection';
+import {
+  PHOTO_KIND_LABELS,
+  checkPhotoFile,
+  isSheetBack,
+  listPhotos,
+  photoUrls,
+  removePhoto,
+  restorePhoto,
+  updatePhoto,
+  uploadPhoto,
+  type PhotoKind,
+  type SpecPhoto,
+} from './api';
 import { PhotoViewer } from './PhotoViewer';
 
 const ACCEPT = 'image/jpeg,image/png,image/webp,.heic,.heif';
@@ -24,6 +38,7 @@ export function PhotosPanel({
   photos,
   onChange,
   startUpload,
+  onBallsSaved,
 }: {
   customer: Customer;
   revisionId: string | null;
@@ -31,11 +46,28 @@ export function PhotosPanel({
   photos: SpecPhoto[];
   onChange: (list: SpecPhoto[]) => void;
   startUpload?: boolean;
+  /** Balls were saved from the back of a sheet. */
+  onBallsSaved?: () => void;
 }) {
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<SpecPhoto | null>(null);
   const [showUpload, setShowUpload] = useState(!!startUpload);
   const [justUploaded, setJustUploaded] = useState(false);
+  const [removing, setRemoving] = useState<SpecPhoto | null>(null);
+  const [removed, setRemoved] = useState<SpecPhoto | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
+
+  async function undoRemove(p: SpecPhoto) {
+    setError(null);
+    try {
+      await restorePhoto(p.id);
+      setRemoved(null);
+      onChange(await listPhotos(customer.id));
+      setSelected(p);
+    } catch (e) {
+      setError(toAppError(e));
+    }
+  }
 
   useEffect(() => {
     setSelected((s) => (s && photos.find((p) => p.id === s.id)) || photos[0] || null);
@@ -57,6 +89,15 @@ export function PhotosPanel({
       <p className="muted">Photos of the paper spec sheet or of balls. They never change the digital measurements.</p>
 
       {justUploaded && <Notice tone="success">Photo uploaded.</Notice>}
+      {removed && (
+        <Notice>
+          Photo deleted.{' '}
+          <button type="button" className="linklike" onClick={() => undoRemove(removed)}>
+            Undo
+          </button>
+        </Notice>
+      )}
+      <ErrorBanner error={error} />
 
       {showUpload && (
         <UploadPanel
@@ -109,11 +150,119 @@ export function PhotosPanel({
                   setSelected(p);
                 }}
               />
+              {isSheetBack(selected) && <BackBalls customerId={customer.id} onSaved={onBallsSaved} />}
+              <p className="no-print">
+                <button type="button" className="btn btn--small btn--danger-outline" onClick={() => setRemoving(selected)}>
+                  Delete photo
+                </button>
+              </p>
             </div>
           )}
         </div>
       )}
+      <Dialog
+        open={!!removing}
+        title="Delete this photo?"
+        onClose={() => setRemoving(null)}
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn btn--danger"
+              onClick={async () => {
+                const p = removing!;
+                setError(null);
+                try {
+                  await removePhoto(p.id);
+                  setRemoving(null);
+                  setRemoved(p);
+                  setJustUploaded(false);
+                  onChange(photos.filter((x) => x.id !== p.id));
+                } catch (e) {
+                  setRemoving(null);
+                  setError(toAppError(e));
+                }
+              }}
+            >
+              Delete photo
+            </button>
+            <button type="button" className="btn" onClick={() => setRemoving(null)}>
+              Keep it
+            </button>
+          </>
+        }
+      >
+        <p>It comes off this bowler. You can undo it right after.</p>
+      </Dialog>
     </section>
+  );
+}
+
+/** The bowler's balls, entered right beside the back of the paper sheet they're written on. */
+function BackBalls({ customerId, onSaved }: { customerId: string; onSaved?: () => void }) {
+  const [base, setBase] = useState<BallDraft[] | null>(null);
+  const [balls, setBalls] = useState<BallDraft[]>([]);
+  const [showErrors, setShowErrors] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<AppError | null>(null);
+
+  useEffect(() => {
+    listBalls(customerId)
+      .then((list) => {
+        const drafts = list.map(ballToDraft);
+        setBase(drafts);
+        setBalls(drafts);
+      })
+      .catch((e) => setError(toAppError(e)));
+  }, [customerId]);
+
+  if (!base) return <ErrorBanner error={error} />;
+  const errors = validateBalls(balls);
+  const changed = !ballsEqual(balls, base);
+
+  async function save() {
+    setShowErrors(true);
+    if (Object.keys(errors).length) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const drafts = (await saveBalls(customerId, balls)).map(ballToDraft);
+      setBase(drafts);
+      setBalls(drafts);
+      setShowErrors(false);
+      setSaved(true);
+      onSaved?.();
+    } catch (e) {
+      setError(toAppError(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="back-balls no-print">
+      <ErrorBanner error={error} />
+      {saved && !changed && <Notice tone="success">Balls saved.</Notice>}
+      <BallsEditor
+        balls={balls}
+        errors={showErrors ? errors : {}}
+        onChange={(next) => {
+          setSaved(false);
+          setBalls(next);
+        }}
+      />
+      <div className="form__actions">
+        <button type="button" className="btn btn--primary" disabled={busy || !changed} onClick={save}>
+          {busy ? 'Saving…' : 'Save balls'}
+        </button>
+        {changed && (
+          <button type="button" className="btn" disabled={busy} onClick={() => setBalls(base)}>
+            Undo changes
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 

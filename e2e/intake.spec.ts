@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
-import { fillField, loginAsStaff, slot, unique } from './helpers';
+import { fillField, loginAsStaff, passSheet, slot, unique } from './helpers';
 
 const SHEET = { mimeType: 'image/png', buffer: readFileSync('public/assets/specSheet550wide.png') };
 
@@ -31,15 +31,14 @@ test('paper sheets go into the queue, get typed in, and land in the app with the
   await page.getByRole('link', { name: '← Queue' }).click();
   await expect(page.locator('[data-count="waiting"] dd')).toHaveText(String(waitingBefore + 2));
 
-  // Skip ahead to this test's own sheets if older ones are waiting.
+  // Skip ahead to this test's own sheets if older ones are waiting; passing opens the next one.
+  await page.getByRole('button', { name: 'Type in the next sheet' }).click();
   for (let i = 0; i < waitingBefore; i++) {
-    await page.getByRole('button', { name: 'Type in the next sheet' }).click();
-    await page.getByRole('button', { name: 'Can\'t read it' }).click();
-    await page.getByRole('button', { name: 'Set aside' }).click();
-    await expect(page.getByRole('heading', { name: 'Paper spec sheets' })).toBeVisible();
+    const url = page.url();
+    await passSheet(page, 'Too blurry');
+    await expect(page).not.toHaveURL(url);
   }
 
-  await page.getByRole('button', { name: 'Type in the next sheet' }).click();
   await expect(page.locator('.intake-photo img')).toBeVisible();
   const frontSrc = await page.locator('.intake-photo img').getAttribute('src');
   await page.getByRole('button', { name: 'Back', exact: true }).click();
@@ -60,10 +59,11 @@ test('paper sheets go into the queue, get typed in, and land in the app with the
   // The next sheet opens straight away.
   await expect(page).not.toHaveURL(first);
   await expect(page.getByText('1. Find the bowler.')).toBeVisible();
-  await page.getByRole('button', { name: 'Can\'t read it' }).click();
-  await page.getByLabel(/What's wrong/).fill('Blurry');
-  await page.getByRole('button', { name: 'Set aside' }).click();
-  await expect(page.locator('.intake-list', { hasText: 'Set aside as unreadable' })).toContainText('Blurry');
+  await passSheet(page, 'Incomplete specs', 'Ring span missing');
+  await expect(page.getByText('That sheet is in the passed pile.')).toBeVisible();
+  const passed = page.locator('.intake-list', { hasText: 'Passed sheets' }).locator('li').first();
+  await expect(passed).toContainText('Incomplete specs · Ring span missing');
+  await expect(passed).toContainText('passed by');
 
   const open = page.locator('.intake-list', { hasText: 'Recently put in the app' }).getByRole('link', { name: 'Open in the app' }).first();
   const href = await open.getAttribute('href');

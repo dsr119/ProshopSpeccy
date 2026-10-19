@@ -28,7 +28,7 @@ async function seedLongValues(page: Page) {
   const id = await createCustomer(page, unique('Fictional Layout Check With A Long Name'), '(555) 010-9999');
   await page.goto(`/customers/${id}/edit`);
   await page.getByLabel('Right-handed').check();
-  await page.getByLabel('Thumb-in').check();
+  await page.getByLabel('Conventional').check();
   for (const [field, v] of Object.entries(LONG)) {
     const [text, dir] = Array.isArray(v) ? v : [v, undefined];
     await fillField(page, field, text, dir);
@@ -92,7 +92,7 @@ test('the sheet stays legible without clipping at phone, tablet and desktop size
   await expect(page.locator('.topbar')).toBeHidden();
   await expect(page.getByRole('button', { name: 'Print' })).toBeHidden();
   await expect(page.locator('.print-sheet')).toContainText('Right-handed');
-  await expect(page.locator('.print-sheet')).toContainText('Thumb-in');
+  await expect(page.locator('.print-sheet')).toContainText('Conventional');
   await expect(page.locator('.print-sheet')).toContainText(/Revision #1 · saved/);
   await expect(page.locator('.print-sheet')).toContainText('grip pressure notes');
   await checkSheet(page);

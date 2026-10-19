@@ -4,7 +4,7 @@ import { toAppError, type AppError } from '../lib/errors';
 import { formatDateTime } from '../lib/format';
 import { useAsync } from '../lib/useAsync';
 import { ErrorBanner, Notice, Spinner } from '../components/ui';
-import { claimNext, getCounts, getPeopleStats, isAdminName, listItems, listRemovedItems, releaseItem, removeItem, restoreItem, type IntakeItem } from './api';
+import { claimNext, getCounts, getPeopleStats, isAdminName, listItems, listRemovedItems, releaseItem, removeItem, restoreItem, PASS_REASONS, type IntakeItem } from './api';
 
 /** The app's own customer page, opened in a new tab. */
 export const appCustomerUrl = (id: string) => `${import.meta.env.BASE_URL}customers/${id}`;
@@ -77,6 +77,7 @@ export function IntakeHome() {
     <main className="page">
       <h1>Paper spec sheets</h1>
       {params.get('finished') && <Notice tone="success">That sheet is now in the app.</Notice>}
+      {params.get('passed') && <Notice>That sheet is in the passed pile.</Notice>}
       {params.get('empty') && <Notice>The queue is empty. Nice work.</Notice>}
       {params.get('removed') && (
         <Notice tone="success">
@@ -93,7 +94,7 @@ export function IntakeHome() {
           [
             ['waiting', 'In the queue'],
             ['working', 'Being typed in'],
-            ['unreadable', 'Set aside'],
+            ['unreadable', 'Passed'],
             ['done', 'In the app'],
           ] as const
         ).map(([key, label]) => (
@@ -134,15 +135,20 @@ export function IntakeHome() {
         )}
       />
       <ItemList
-        title="Set aside as unreadable"
+        title="Passed sheets"
         items={unreadable.data}
         loading={unreadable.loading}
         render={(i) => (
           <>
             <span>
-              {i.note ?? 'No note'} <span className="muted small">· added by {i.added_by ?? 'unknown'}</span>
+              <strong>{i.pass_reason ? PASS_REASONS[i.pass_reason] : 'Set aside'}</strong>
+              {i.note && ` · ${i.note}`}{' '}
+              <span className="muted small">· {i.passed_by ? `passed by ${i.passed_by}` : `added by ${i.added_by ?? 'unknown'}`}</span>
             </span>
             <span className="intake-actions--inline">
+              <Link className="btn btn--small" to={`/sheet/${i.id}`}>
+                Look at it
+              </Link>
               <button type="button" className="btn btn--small" onClick={() => putBack(i)}>
                 Put back in the queue
               </button>

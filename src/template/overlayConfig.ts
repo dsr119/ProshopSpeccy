@@ -41,6 +41,8 @@ export interface OverlaySlot extends Rect {
   dir?: 'forward' | 'reverse' | 'left' | 'right';
   /** A lateral pitch box that shows left as minus and right as plus. */
   signed?: boolean;
+  /** The way a finger's lateral pitch nearly always goes: toward its own side of the sheet. */
+  lean?: 'left' | 'right';
   /** Draw a frame around the slot (boxes and pitch boxes). */
   framed?: boolean;
   /** Only on the sheet with or without finger grips. */
@@ -110,7 +112,7 @@ function fingerSlots(side: 'left' | 'right'): OverlaySlot[] {
     { field: `${f}_hole`, style: 'half', when: 'grips', ...half, y: HOLE_Y + 6 },
     { field: `${f}_hole`, style: 'half', when: 'no_grips', x: g.cx - 44, w: 88, h: 32, y: HOLE_Y - 16 },
     { field: `${f}_fr_pitch`, style: 'pitch', dir: 'reverse', framed: true, x: g.colX, y: 27, w: 78, h: 48 },
-    { field: `${f}_lateral_pitch`, style: 'pitch', signed: true, framed: true, x: g.colX, y: 91, w: 78, h: 48 },
+    { field: `${f}_lateral_pitch`, style: 'pitch', signed: true, lean: side, framed: true, x: g.colX, y: 91, w: 78, h: 48 },
     { field: `${f}_fr_pitch`, style: 'pitch', dir: 'forward', framed: true, x: g.colX, y: 155, w: 78, h: 48 },
     { field: `${f}_inserts`, style: 'line', x: g.cx - 52, y: 28, w: 104, h: 18 },
     { field: `${f}_cut_to_cut`, style: 'box', framed: true, x: side === 'left' ? 119 : 289, y: 262, w: 132, h: 72 },
@@ -120,6 +122,7 @@ function fingerSlots(side: 'left' | 'right'): OverlaySlot[] {
 export const OVERLAY_SLOTS: OverlaySlot[] = [
   ...fingerSlots('left'),
   ...fingerSlots('right'),
+  { field: 'grip_type', style: 'box', framed: true, when: 'grips', x: 226, y: 36, w: 87, h: 22 },
   { field: 'bridge', style: 'box', framed: true, x: 230, y: 70, w: 78, h: 40 },
   { field: 'thumb_od', style: 'half', x: THUMB.cx - 40, y: THUMB.cy - 32, w: 80, h: 26 },
   { field: 'thumb_hole', style: 'half', x: THUMB.cx - 40, y: THUMB.cy + 6, w: 80, h: 26 },
@@ -180,21 +183,13 @@ export const SHEET_DOTTED: DottedLine[] = [
   { x1: 352, x2: 482, y: 424 },
 ];
 
-/** Grips or no grips above the bridge; with grips, STD or Vaccu under them. */
+/** Grips or no grips above the bridge; with grips, the grip type box sits under them. */
 export const CHOICE_GROUPS: ChoiceGroup[] = [
   {
     field: 'finger_grips',
     options: [
       { value: 'no_grips', label: 'No Grips', x: 226, y: 8, w: 42, h: 22 },
       { value: 'grips', label: 'Grips', x: 271, y: 8, w: 42, h: 22 },
-    ],
-  },
-  {
-    field: 'grip_type',
-    when: 'grips',
-    options: [
-      { value: 'std', label: 'STD', x: 226, y: 36, w: 42, h: 22 },
-      { value: 'vaccu', label: 'Vaccu', x: 271, y: 36, w: 42, h: 22 },
     ],
   },
 ];

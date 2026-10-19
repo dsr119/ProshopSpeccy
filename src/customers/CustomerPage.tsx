@@ -23,7 +23,7 @@ export function FitIdentity({ snapshot }: { snapshot: Snapshot | null }) {
   return (
     <p className="fit-identity">
       <span className="tag">{hand ? HAND_LABELS[hand] : 'Hand not recorded'}</span>
-      <span className="tag">{mode ? THUMB_MODE_LABELS[mode] : 'Thumb mode not recorded'}</span>
+      <span className="tag">{mode ? (THUMB_MODE_LABELS[mode] ?? mode) : 'Grip not recorded'}</span>
       {typeof snapshot?.fit_label === 'string' && <span className="tag tag--plain">{snapshot.fit_label}</span>}
     </p>
   );
@@ -34,7 +34,7 @@ export function FitNotes({ snapshot }: { snapshot: Snapshot | null }) {
   const items: Array<[string, unknown]> = [
     ['Finger inserts', snapshot?.finger_insert_details],
     ...(noThumb ? [] : ([['Thumb system', snapshot?.thumb_system_details]] as Array<[string, unknown]>)),
-    ['Fitting notes', snapshot?.fitting_notes],
+    ['Notes', snapshot?.fitting_notes],
   ];
   return (
     <dl className="fit-notes">
@@ -187,6 +187,7 @@ export function CustomerPage() {
               photos={photoList}
               onChange={photos.setData}
               startUpload={params.get('upload') === '1'}
+              onBallsSaved={balls.reload}
             />
           )}
         </>

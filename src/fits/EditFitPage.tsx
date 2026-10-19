@@ -12,6 +12,7 @@ import {
   SPAN_TYPE_HINTS,
   SPAN_TYPE_LABELS,
   THUMB_INSERT_TYPES,
+  THUMB_MODE_LABELS,
   snapshotToDraft,
   validateDraft,
   type Draft,
@@ -326,7 +327,7 @@ export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
             activeField={activeField}
             caption="Spec sheet. Tap a box to type or scroll its value."
           />
-          {noThumb && <p className="muted small">No-thumb: the thumb and span part of the sheet is hidden. Values saved earlier are kept.</p>}
+          {noThumb && <p className="muted small">No Thumb: the thumb and span part of the sheet is hidden. Values saved earlier are kept.</p>}
           {Object.keys(visibleErrors).length > 0 && (
             <ul className="sheet-errors" role="alert">
               {FIELDS.filter((f) => visibleErrors[f.key]).map((f) => (
@@ -342,6 +343,20 @@ export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
         </div>
 
         <div className="editor__form">
+          <fieldset className="fieldset">
+            <legend>{GROUP_LABELS.notes}</legend>
+            {FIELDS.filter((f) => f.group === 'notes').map((f) => (
+              <FieldControl
+                key={f.key}
+                def={f}
+                value={draft[f.key]}
+                error={visibleErrors[f.key]}
+                onChange={(patch) => setField(f.key, patch)}
+                onFocus={() => setActiveField(f.key)}
+              />
+            ))}
+          </fieldset>
+
           <fieldset className="fieldset">
             <legend>{GROUP_LABELS.details}</legend>
             {FIELDS.filter((f) => f.group === 'details' && !(noThumb && f.key === 'thumb_system_details')).map((f) => (
@@ -563,8 +578,9 @@ function FieldControl({
           ]
         : def.kind === 'enum_thumb_mode'
           ? [
-              ['thumb_in', 'Thumb-in'],
-              ['no_thumb', 'No-thumb'],
+              ...(['fingertip', 'conventional', 'no_thumb'] as const).map((m) => [m, THUMB_MODE_LABELS[m]]),
+              // Fits saved before the grip was recorded keep plain thumb-in until someone picks one.
+              ...(value.text === 'thumb_in' ? [['thumb_in', THUMB_MODE_LABELS.thumb_in]] : []),
               ['', 'Not recorded'],
             ]
           : def.kind === 'enum_thumb_insert'
@@ -605,7 +621,7 @@ function FieldControl({
     return (
       <label className="field">
         <span className="field__label">{def.label}</span>
-        <textarea id={id} rows={3} value={value.text} onChange={(e) => onChange({ text: e.target.value })} onFocus={onFocus} aria-invalid={!!error} aria-describedby={describedBy} />
+        <textarea id={id} rows={def.group === 'notes' ? 6 : 3} value={value.text} onChange={(e) => onChange({ text: e.target.value })} onFocus={onFocus} aria-invalid={!!error} aria-describedby={describedBy} />
         {error && <span id={errId} className="field-error">{error}</span>}
       </label>
     );

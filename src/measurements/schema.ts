@@ -25,7 +25,7 @@ export type FieldKind =
   /** A plain number with its own unit and range, such as rev rate or speed. */
   | 'stat';
 
-export type FieldGroup = 'identity' | 'fingers' | 'middle' | 'ring' | 'spans' | 'thumb' | 'motion' | 'details';
+export type FieldGroup = 'identity' | 'fingers' | 'middle' | 'ring' | 'spans' | 'thumb' | 'motion' | 'details' | 'notes';
 
 export interface FieldDef {
   key: FieldKey;
@@ -91,7 +91,7 @@ export type FieldKey = (typeof FIELD_KEYS)[number];
 export const FIELDS: FieldDef[] = [
   { key: 'hand', kind: 'enum_hand', label: 'Bowling hand', shortLabel: 'Hand', group: 'identity' },
   { key: 'play_style', kind: 'enum_play_style', label: 'One or two handed', shortLabel: 'Style', group: 'identity' },
-  { key: 'thumb_mode', kind: 'enum_thumb_mode', label: 'Thumb mode', shortLabel: 'Thumb mode', group: 'identity' },
+  { key: 'thumb_mode', kind: 'enum_thumb_mode', label: 'Grip', shortLabel: 'Grip', group: 'identity' },
   { key: 'fit_label', kind: 'text_short', label: 'Fit label (optional)', shortLabel: 'Label', group: 'identity' },
 
   { key: 'finger_grips', kind: 'enum_grips', label: 'Finger grips', shortLabel: 'Grips', group: 'fingers' },
@@ -141,7 +141,7 @@ export const FIELDS: FieldDef[] = [
 
   { key: 'finger_insert_details', kind: 'text_long', label: 'Finger insert details', shortLabel: 'Finger inserts', group: 'details' },
   { key: 'thumb_system_details', kind: 'text_long', label: 'Thumb system details', shortLabel: 'Thumb system', group: 'details' },
-  { key: 'fitting_notes', kind: 'text_long', label: 'Fitting notes', shortLabel: 'Notes', group: 'details' },
+  { key: 'fitting_notes', kind: 'text_long', label: 'Notes', shortLabel: 'Notes', group: 'notes' },
 ];
 
 export const FIELD_BY_KEY = Object.fromEntries(FIELDS.map((f) => [f.key, f])) as Record<FieldKey, FieldDef>;
@@ -154,14 +154,16 @@ export const GROUP_LABELS: Record<FieldGroup, string> = {
   spans: 'Spans',
   thumb: 'Thumb',
   motion: 'Ball motion',
-  details: 'Inserts, thumb system and notes',
+  details: 'Inserts and thumb system',
+  notes: 'Notes',
 };
 
 export type LateralDir = 'left' | 'right' | 'none';
 export type ForwardDir = 'forward' | 'reverse' | 'none';
 export type VerticalDir = 'up' | 'down' | 'none';
 export type Hand = 'right' | 'left';
-export type ThumbMode = 'thumb_in' | 'no_thumb';
+/** The grip: fingertip or conventional with the thumb in, or no thumb. Plain thumb-in is from before the grip was recorded. */
+export type ThumbMode = 'fingertip' | 'conventional' | 'no_thumb' | 'thumb_in';
 export type SpanType = 'cut_to_cut' | 'full_span' | 'cut_to_outer';
 export type PlayStyle = 'one_handed' | 'two_handed';
 export const PLAY_STYLE_LABELS: Record<PlayStyle, string> = { one_handed: 'One Handed', two_handed: 'Two Handed' };
@@ -189,9 +191,15 @@ export function spanField(finger: 'middle' | 'ring', type: SpanType | '' | null 
 }
 
 export type Grips = 'no_grips' | 'grips';
-export type GripType = 'std' | 'vaccu';
+export type GripType = 'std' | 'vaccu' | 'oval_mesh' | 'oval_no_mesh' | 'lifts';
 export const GRIPS_LABELS: Record<Grips, string> = { no_grips: 'No Grips', grips: 'Grips' };
-export const GRIP_TYPE_LABELS: Record<GripType, string> = { std: 'STD', vaccu: 'Vaccu' };
+export const GRIP_TYPE_LABELS: Record<GripType, string> = {
+  std: 'STD',
+  vaccu: 'Vaccu',
+  oval_mesh: 'Oval Mesh',
+  oval_no_mesh: 'Oval No Mesh',
+  lifts: 'Lifts',
+};
 
 /** n/64 inch as reduced text, e.g. 72 → "1 1/8". */
 function sixtyFourths(i: number): string {
@@ -393,7 +401,7 @@ export function validateDraft(draft: Draft): DraftErrors {
     if (f.kind === 'enum_thumb_insert' && trimmed && !(THUMB_INSERT_TYPES as readonly string[]).includes(trimmed))
       errors[f.key] = `Choose ${THUMB_INSERT_TYPES.join(', ')}`;
     if (f.kind === 'enum_grips' && trimmed && !(trimmed in GRIPS_LABELS)) errors[f.key] = 'Choose grips or no grips';
-    if (f.kind === 'enum_grip_type' && trimmed && !(trimmed in GRIP_TYPE_LABELS)) errors[f.key] = 'Choose STD or Vaccu';
+    if (f.kind === 'enum_grip_type' && trimmed && !(trimmed in GRIP_TYPE_LABELS)) errors[f.key] = `Choose ${Object.values(GRIP_TYPE_LABELS).join(', ')}`;
     if (f.kind === 'enum_play_style' && trimmed && !(trimmed in PLAY_STYLE_LABELS)) errors[f.key] = 'Choose one or two handed';
     if (f.kind === 'text_short' && trimmed.length > 120) errors[f.key] = 'Keep this under 120 characters';
     if (f.kind === 'text_long' && trimmed.length > 4000) errors[f.key] = 'Keep this under 4000 characters';
@@ -512,7 +520,12 @@ export function directionLabel(dir: string): string {
 }
 
 export const HAND_LABELS: Record<Hand, string> = { right: 'Right-handed', left: 'Left-handed' };
-export const THUMB_MODE_LABELS: Record<ThumbMode, string> = { thumb_in: 'Thumb-in', no_thumb: 'No-thumb' };
+export const THUMB_MODE_LABELS: Record<ThumbMode, string> = {
+  fingertip: 'Finger Tip',
+  conventional: 'Conventional',
+  no_thumb: 'No Thumb',
+  thumb_in: 'Thumb-in',
+};
 export const SPAN_TYPE_LABELS: Record<SpanType, string> = {
   full_span: 'Full Span',
   cut_to_cut: 'Cut to Cut',

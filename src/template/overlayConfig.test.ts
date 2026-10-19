@@ -3,13 +3,12 @@ import { FIELDS } from '../measurements/schema';
 import { CHOICE_GROUPS, OVERLAY_SLOTS, SHEET_LABELS, TEMPLATE_H, TEMPLATE_W } from './overlayConfig';
 import { fitFont, pitchText } from './SpecSheet';
 
-// The span type is the lettered picker and grips are choice boxes; the full span and cut to outer values share
+// The span type is the lettered picker and grips / no grips are choice boxes; the full span and cut to outer values share
 // the span boxes with cut to cut; ball motion and the author are in the footer under the drawing; the rest are
 // kept in the record and the table but not drawn on the sheet.
 const OFF_SHEET = new Set([
   'span_type',
   'finger_grips',
-  'grip_type',
   'middle_full_span',
   'ring_full_span',
   'middle_cut_to_outer',
@@ -21,7 +20,7 @@ const OFF_SHEET = new Set([
   'thumb_oval',
   'thumb_oval_angle',
 ]);
-const sheetFields = FIELDS.filter((f) => !['identity', 'motion', 'details'].includes(f.group) && !OFF_SHEET.has(f.key)).map((f) => f.key);
+const sheetFields = FIELDS.filter((f) => !['identity', 'motion', 'details', 'notes'].includes(f.group) && !OFF_SHEET.has(f.key)).map((f) => f.key);
 
 function overlaps(a: { x: number; y: number; w: number; h: number }, b: typeof a) {
   return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
@@ -32,7 +31,7 @@ describe('overlay configuration', () => {
     const keys = [...new Set(OVERLAY_SLOTS.map((s) => s.field))].sort();
     expect(keys).toEqual([...sheetFields].sort());
     const ids = OVERLAY_SLOTS.map((s) => `${s.field}:${s.dir ?? ''}:${s.when ?? ''}`);
-    expect(CHOICE_GROUPS.map((g) => g.field)).toEqual(['finger_grips', 'grip_type']);
+    expect(CHOICE_GROUPS.map((g) => g.field)).toEqual(['finger_grips']);
     expect(new Set(ids).size).toBe(ids.length);
   });
 

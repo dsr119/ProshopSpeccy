@@ -349,7 +349,7 @@ function SheetArtwork({
             {(a.heads === 'start' || a.heads === 'both') && <polygon points={head(a.x2, a.y2, a.x1, a.y1)} />}
           </g>
         ))}
-        {OVERLAY_SLOTS.filter((s) => s.framed && s.y + s.h <= height).map((s) => (
+        {OVERLAY_SLOTS.filter((s) => s.framed && s.y + s.h <= height && (!s.when || (s.when === 'grips') === grips)).map((s) => (
           <rect key={`${s.field}:${s.dir ?? ''}`} x={s.x} y={s.y} width={s.w} height={s.h} rx={2} fill="#fff" />
         ))}
       </g>
@@ -413,7 +413,7 @@ function SheetArtwork({
   );
 }
 
-const GROUP_ORDER: FieldGroup[] = ['identity', 'fingers', 'middle', 'ring', 'spans', 'thumb', 'motion', 'details'];
+const GROUP_ORDER: FieldGroup[] = ['identity', 'fingers', 'middle', 'ring', 'spans', 'thumb', 'motion', 'details', 'notes'];
 
 /** Accessible, printable text version of the complete sheet. */
 export function SheetTable({ snapshot }: { snapshot: Snapshot | null }) {
