@@ -149,7 +149,9 @@ function ReviewForm({ item, by, onSaved }: { item: ReadForReview; by: string; on
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
 
-  useEffect(() => window.scrollTo(0, 0), []);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   const unmarked = rows.filter((r) => !marks[r.key]).length;
 
