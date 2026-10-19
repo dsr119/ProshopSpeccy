@@ -203,13 +203,33 @@ export function RevisionPage() {
       ) : (
         <>
           <h1>
-            Revision #{r.revision_number} {isCurrent ? <span className="tag">Current</span> : <span className="tag tag--old">Older version</span>}
+            Revision #{r.revision_number} {isCurrent ? (
+              <span className="tag">Current</span>
+            ) : r.revision_number > (current.data?.revision?.revision_number ?? 0) ? (
+              <span className="tag tag--old">Not checked yet</span>
+            ) : (
+              <span className="tag tag--old">Older version</span>
+            )}
           </h1>
           <p className="muted">
             Saved {formatDateTime(r.created_at)} by {r.author_name ?? 'unknown'}
             {r.change_note ? ` · “${r.change_note}”` : ''}
           </p>
           <FitIdentity snapshot={r.snapshot} />
+          {!isCurrent && current.data?.revision && (
+            <details className="text-view" open>
+              <summary>Differences from the current sheet (#{current.data.revision.revision_number})</summary>
+              <ChangeTable
+                before={current.data.revision.snapshot}
+                after={r.snapshot}
+                beforeLabel={`Current #${current.data.revision.revision_number}`}
+                afterLabel={`#${r.revision_number}`}
+              />
+              <p className="muted small">
+                <Link to={`/customers/${customerId}?view=photos`}>Open the paper photos</Link> to check which one is right.
+              </p>
+            </details>
+          )}
           {!isCurrent && current.data?.fit && (
             <button type="button" className="btn" onClick={() => setRestoring(true)}>
               Restore this revision…
