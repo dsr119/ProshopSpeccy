@@ -13,6 +13,7 @@ import { ADMIN_NAME, isAdminName, listIntakeNames, readWorkerName, saveWorkerNam
 import { IntakeHome } from './IntakeHome';
 import { AddPhotosPage } from './AddPhotosPage';
 import { SheetPage } from './SheetPage';
+import { AiReviewList, AiReviewPage } from './AiReviewPage';
 
 /** Who is adding or typing in sheets; asked once on this device. */
 export function useWorkerName(): [string, (name: string) => void] {
@@ -121,6 +122,8 @@ const router = createHashRouter([
       { index: true, element: <IntakeHome /> },
       { path: 'add', element: <AddPhotosPage /> },
       { path: 'sheet/:itemId', element: <SheetPage /> },
+      { path: 'ai-review', element: <AiReviewList /> },
+      { path: 'ai-review/:itemId', element: <AiReviewPage /> },
       {
         path: '*',
         element: (
