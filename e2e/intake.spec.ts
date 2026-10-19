@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
-import { fillField, loginAsStaff, passSheet, slot, unique } from './helpers';
+import { fillField, intakeSignIn, loginAsStaff, passSheet, slot, unique } from './helpers';
 
 const SHEET = { mimeType: 'image/png', buffer: readFileSync('public/assets/specSheet550wide.png') };
 
@@ -10,8 +10,9 @@ test('paper sheets go into the queue, get typed in, and land in the app with the
   await expect(page.locator('a[href*="intake"]')).toHaveCount(0);
 
   await page.goto('/intake/');
-  await page.getByLabel('Your name').fill('Sam Intake');
-  await page.getByRole('button', { name: 'Continue' }).click();
+  // Names are picked from a list, not typed.
+  await expect(page.getByRole('textbox')).toHaveCount(0);
+  await intakeSignIn(page, 'Fictional Fran');
   await expect(page.getByRole('heading', { name: 'Paper spec sheets' })).toBeVisible();
   await expect(page.locator('[data-count="waiting"] dd')).not.toHaveText('–');
   const waitingBefore = Number((await page.locator('[data-count="waiting"] dd').textContent())?.replace(/\D/g, '') || 0);
@@ -78,9 +79,8 @@ test('paper sheets go into the queue, get typed in, and land in the app with the
   await page.goto('/intake/');
   await expect(page.getByRole('heading', { name: 'Who has done what' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Not you?' }).click();
-  await page.getByLabel('Your name').fill('Admin');
-  await page.getByRole('button', { name: 'Continue' }).click();
-  const row = page.locator('.intake-people__table tbody tr', { hasText: 'Sam Intake' });
+  await intakeSignIn(page, 'Admin');
+  const row = page.locator('.intake-people__table tbody tr', { hasText: 'Fictional Fran' });
   await expect(row.locator('td').nth(0)).not.toHaveText('0');
   await expect(row.locator('td').nth(3)).not.toHaveText('0');
 });

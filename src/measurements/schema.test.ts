@@ -126,9 +126,10 @@ describe('measurement schema', () => {
     for (const a of PITCH_AMOUNTS) expect(validateDraft(draftWith({ middle_lateral_pitch: { text: a, dir: 'left' } }))).toEqual({});
   });
 
-  it('limits spans to 2–6 inches in 1/16 steps, picked on two wheels', () => {
+  it('limits spans to 2–6 inches in 1/32 steps, picked on two wheels', () => {
     expect(SPAN_WHOLES).toEqual(['2', '3', '4', '5', '6']);
-    expect(SPAN_FRACTIONS.slice(0, 3)).toEqual(['0', '1/16', '1/8']);
+    expect(SPAN_FRACTIONS.slice(0, 4)).toEqual(['0', '1/32', '1/16', '3/32']);
+    expect(splitSpan('4 3/32')).toEqual({ whole: '4', fraction: '3/32' });
     expect(splitSpan('4 3/8')).toEqual({ whole: '4', fraction: '3/8' });
     expect(splitSpan('5')).toEqual({ whole: '5', fraction: '0' });
     expect(splitSpan('7')).toBeNull();
@@ -140,7 +141,8 @@ describe('measurement schema', () => {
     expect(withSpan('4 15/16')).toBeUndefined();
     expect(withSpan('1 7/8')).toMatch(/between 2 and 6/);
     expect(withSpan('6 1/16')).toMatch(/between 2 and 6/);
-    expect(withSpan('4 1/32')).toMatch(/1\/16/);
+    expect(withSpan('4 1/32')).toBeUndefined();
+    expect(withSpan('4 1/64')).toMatch(/1\/32/);
     expect(decimalHint('1/16')).toBe('0.062');
     expect(decimalHint('3/16')).toBe('0.188');
   });

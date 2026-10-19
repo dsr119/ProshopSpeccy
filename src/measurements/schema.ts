@@ -222,6 +222,8 @@ function sixtyFourths(i: number): string {
 export const HOLE_SIZES: string[] = Array.from({ length: 65 }, (_, i) => sixtyFourths(16 + i));
 /** Holes drilled for finger grips. */
 export const GRIP_HOLE_SIZES = ['7/8', '31/32', '1 1/32'];
+/** The finger hole drilled for grips unless another size is picked. */
+export const DEFAULT_GRIP_HOLE = '31/32';
 /** Finger grip sizes with the grip number shown beside each. */
 export const GRIP_SIZES: Array<[string, string]> = [
   ...Array.from({ length: 23 }, (_, i) => [sixtyFourths(34 + i), String((i - 2) / 2)] as [string, string]),
@@ -319,9 +321,16 @@ export function decimalHint(text: string): string {
   return (rounded / 1000).toFixed(3);
 }
 
-/** The two span wheels: whole inches, and the sixteenths on top of them. */
+/** n/32 inch as reduced text, e.g. 6 → "3/16". */
+function thirtySeconds(i: number): string {
+  return sixtyFourths(i * 2);
+}
+
+/** The two span wheels: whole inches, and the thirty-seconds on top of them. */
 export const SPAN_WHOLES: string[] = Array.from({ length: SPAN_MAX - SPAN_MIN + 1 }, (_, i) => String(SPAN_MIN + i));
-export const SPAN_FRACTIONS: string[] = Array.from({ length: 16 }, (_, i) => (i === 0 ? '0' : sixteenths(i)));
+/** The sixteenths of an inch, for the P.A.P wheels. */
+export const SIXTEENTHS: string[] = Array.from({ length: 16 }, (_, i) => (i === 0 ? '0' : sixteenths(i)));
+export const SPAN_FRACTIONS: string[] = Array.from({ length: 32 }, (_, i) => (i === 0 ? '0' : thirtySeconds(i)));
 
 /** Splits a span such as "4 3/8" into its wheels; null when it isn't on them. */
 export function splitSpan(text: string): { whole: string; fraction: string } | null {
@@ -329,7 +338,7 @@ export function splitSpan(text: string): { whole: string; fraction: string } | n
   if (!parsed.ok || spanRangeError(parsed.value)) return null;
   const { n, d } = parsed.value;
   const whole = Math.floor(n / d);
-  return { whole: String(whole), fraction: sixteenths(((n - whole * d) * 16) / d) };
+  return { whole: String(whole), fraction: thirtySeconds(((n - whole * d) * 32) / d) };
 }
 
 export function joinSpan(whole: string, fraction: string): string {
@@ -374,7 +383,7 @@ function pitchRangeError(value: Rational): string | null {
 
 function spanRangeError(value: Rational): string | null {
   if (value.n < SPAN_MIN * value.d || value.n > SPAN_MAX * value.d) return `Span must be between ${SPAN_MIN} and ${SPAN_MAX} inches`;
-  if (16 % value.d !== 0) return 'Use steps of 1/16 inch';
+  if (32 % value.d !== 0) return 'Use steps of 1/32 inch';
   return null;
 }
 

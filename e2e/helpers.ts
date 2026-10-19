@@ -115,6 +115,20 @@ export async function chooseGrips(page: Page, grips: 'Grips' | 'No Grips', type?
   if (type) await page.getByRole('button', { name: type, exact: true }).click();
 }
 
+/** Picks a name on the intake sign-in list; a name not on it is added by signing in as Admin first. */
+export async function intakeSignIn(page: Page, name: string) {
+  const pick = page.getByRole('list', { name: 'Your name' }).getByRole('button', { name, exact: true });
+  await expect(page.getByRole('list', { name: 'Your name' })).toBeVisible();
+  if (name !== 'Admin' && (await pick.count()) === 0) {
+    await intakeSignIn(page, 'Admin');
+    await page.getByLabel('Add a name').fill(name);
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
+    await expect(page.getByRole('status')).toHaveText(`${name} is on the list.`);
+    await page.getByRole('button', { name: 'Not you?' }).click();
+  }
+  await pick.click();
+}
+
 /** Passes the open intake sheet with a reason. */
 export async function passSheet(page: Page, reason: string, note?: string) {
   await page.getByRole('button', { name: 'Pass', exact: true }).click();

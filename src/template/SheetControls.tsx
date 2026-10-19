@@ -10,6 +10,7 @@ import {
   FIELD_BY_KEY,
   PITCH_AMOUNTS,
   SPAN_FRACTIONS,
+  SIXTEENTHS,
   SPAN_TYPE_LABELS,
   SPAN_TYPE_ORDER,
   SPAN_WHOLES,
@@ -20,6 +21,7 @@ import {
   GRIP_BRANDS,
   GRIP_BRAND_FIELDS,
   DEFAULT_GRIP_BRAND,
+  DEFAULT_GRIP_HOLE,
   joinInches,
   splitInches,
   decimalHint,
@@ -261,7 +263,7 @@ const SPAN_COLUMNS: WheelColumn[] = [
   { label: 'Fraction', options: SPAN_FRACTIONS.map((f) => ({ value: f, label: f })) },
 ];
 
-/** A span box opens one picker with two wheels side by side: whole inches and sixteenths, like a date. */
+/** A span box opens one picker with two wheels side by side: whole inches and thirty-seconds, like a date. */
 function SpanWheels({ slot, editor, label }: { slot: OverlaySlot; editor: SheetEditor; label: string }) {
   const [open, setOpen] = useState(false);
   const v = editor.draft[slot.field];
@@ -321,9 +323,10 @@ export function ChoiceButtons({
     if (group.field === 'finger_grips' && next !== 'grips') {
       for (const key of ['grip_type', ...GRIP_BRAND_FIELDS, 'middle_grip_size', 'ring_grip_size'] as const) editor.setField(key, { text: '' });
     }
-    // Grips are Turbo unless another brand is picked.
+    // Grips are Turbo and drilled 31/32 unless something else is picked.
     if (group.field === 'finger_grips' && next === 'grips') {
       for (const key of GRIP_BRAND_FIELDS) if (!editor.draft[key].text.trim()) editor.setField(key, { text: DEFAULT_GRIP_BRAND });
+      for (const key of ['middle_hole', 'ring_hole'] as const) if (!editor.draft[key].text.trim()) editor.setField(key, { text: DEFAULT_GRIP_HOLE });
     }
   }
   return (
@@ -347,7 +350,7 @@ export function ChoiceButtons({
 }
 
 const wholes = (max: number) => Array.from({ length: max + 1 }, (_, i) => ({ value: String(i), label: String(i) }));
-const FRACTIONS = SPAN_FRACTIONS.map((f) => ({ value: f, label: f }));
+const FRACTIONS = SIXTEENTHS.map((f) => ({ value: f, label: f }));
 const PAP_COLUMNS: WheelColumn[] = [
   { label: 'Horizontal inches', options: wholes(PAP_MAX) },
   { label: 'Horizontal fraction', options: FRACTIONS },

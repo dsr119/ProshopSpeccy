@@ -1,10 +1,11 @@
-import { useState, type ReactNode } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
+import { useAuth } from '../lib/auth';
 import { Link, useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import { toAppError, type AppError } from '../lib/errors';
 import { formatDateTime } from '../lib/format';
 import { useAsync } from '../lib/useAsync';
 import { ErrorBanner, Notice, Spinner } from '../components/ui';
-import { claimNext, getCounts, getPeopleStats, isAdminName, listItems, listRemovedItems, releaseItem, removeItem, restoreItem, PASS_REASONS, type IntakeItem } from './api';
+import { addIntakeName, claimNext, getCounts, getPeopleStats, isAdminName, listIntakeNames, listItems, listRemovedItems, releaseItem, removeItem, restoreItem, PASS_REASONS, type IntakeItem } from './api';
 
 /** The app's own customer page, opened in a new tab. */
 export const appCustomerUrl = (id: string) => `${import.meta.env.BASE_URL}customers/${id}`;
@@ -116,6 +117,7 @@ export function IntakeHome() {
       {empty && <Notice>Nothing is waiting in the queue right now.</Notice>}
 
       {isAdminName(name) && <PeopleStats />}
+      {isAdminName(name) && <NameList />}
 
       <ItemList
         title="Being typed in now"
@@ -226,6 +228,56 @@ function PeopleStats() {
           Refresh
         </button>
       </p>
+    </section>
+  );
+}
+
+/** Admin only: the names people pick from to sign in, and a way to add one. */
+function NameList() {
+  const { membership } = useAuth();
+  const names = useAsync(listIntakeNames, []);
+  const [value, setValue] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<AppError | null>(null);
+  const [added, setAdded] = useState<string | null>(null);
+
+  async function add(e: FormEvent) {
+    e.preventDefault();
+    if (!membership || !value.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const name = await addIntakeName(membership.shop_id, value);
+      setAdded(name);
+      setValue('');
+      names.reload();
+    } catch (err) {
+      setError(toAppError(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="intake-list intake-names-admin" aria-label="Names on the sign-in list">
+      <h2>Names on the sign-in list</h2>
+      <ErrorBanner error={names.error} onRetry={names.reload} />
+      {names.loading ? <Spinner /> : <p>{names.data?.length ? names.data.join(', ') : 'No names yet.'}</p>}
+      <form className="intake-names-admin__form" onSubmit={add}>
+        <label>
+          Add a name
+          <input value={value} maxLength={120} onChange={(e) => setValue(e.target.value)} placeholder="First and last name" />
+        </label>
+        <button type="submit" className="btn btn--primary" disabled={saving || !value.trim()}>
+          {saving ? 'Adding…' : 'Add'}
+        </button>
+      </form>
+      {error && <ErrorBanner error={error} />}
+      {added && !error && (
+        <p className="muted small" role="status">
+          {added} is on the list.
+        </p>
+      )}
     </section>
   );
 }
