@@ -101,10 +101,9 @@ How the shop reads a sheet, in order:
 8. The GRIP line at the bottom (Finger Tip / Conventional / No Thumb) sets thumb_mode. Check WGT and P.A.P.; leave them out when blank.
 9. Copy anything written in NOTES and in the OVAL INFO box word for word into fitting_notes.
 
-Plus and minus signs:
+Plus and minus signs (they mean 1/32 more or less, on every kind of value):
 - A value whose denominator is 32 (like "1 3/32+") keeps the number and drops the sign: "1 3/32".
-- Spans and hole sizes in other fractions move 1/32 in the sign's direction: "4 7/8+" is "4 29/32", "4 13/16+" is "4 27/32", "4 1/4-" is "4 7/32".
-- Pitches and the bridge go in sixteenths, so a sign moves them 1/16: "3/8+" is "7/16", "1/4-" is "3/16". Mention in review_reasons each pitch or bridge you changed this way, like "Thumb reverse pitch written 3/8+, entered as 7/16".`;
+- Any other value moves 1/32 in the sign's direction: "4 7/8+" is "4 29/32", "4 13/16+" is "4 27/32", "4 1/4-" is "4 7/32", a pitch of "3/8+" is "13/32", a bridge of "1/4+" is "9/32".`;
 
 const EXAMPLE_ANSWER = {
   name: 'Frank Alu',
@@ -122,20 +121,16 @@ const EXAMPLE_ANSWER = {
     { key: 'ring_grip_size', written: '29 Lift', text: '29/32', dir: '' },
     { key: 'ring_inserts', written: 'Lift', text: 'Lifts', dir: '' },
     { key: 'ring_lateral_pitch', written: '5/8 by the right arrow', text: '5/8', dir: 'right' },
-    { key: 'bridge', written: '1/4+', text: '5/16', dir: '' },
+    { key: 'bridge', written: '1/4+', text: '9/32', dir: '' },
     { key: 'span_type', written: 'Cut', text: 'cut_to_cut', dir: '' },
     { key: 'middle_span', written: '4 7/8+', text: '4 29/32', dir: '' },
     { key: 'ring_span', written: '4 13/16+', text: '4 27/32', dir: '' },
     { key: 'thumb_hole', written: '1 3/32+', text: '1 3/32', dir: '' },
     { key: 'thumb_lateral_pitch', written: '1/16 by the left arrow', text: '1/16', dir: 'left' },
-    { key: 'thumb_fr_pitch', written: '3/8+ by the down arrow', text: '7/16', dir: 'reverse' },
+    { key: 'thumb_fr_pitch', written: '3/8+ by the down arrow', text: '13/32', dir: 'reverse' },
   ],
   needs_review: true,
-  review_reasons: [
-    "Ring finger forward/reverse pitch by the down arrow is written over and can't be read",
-    'Bridge written 1/4+, entered as 5/16',
-    'Thumb reverse pitch written 3/8+, entered as 7/16',
-  ],
+  review_reasons: ["Ring finger forward/reverse pitch by the down arrow is written over and can't be read"],
   unsure: ['ring_fr_pitch'],
 };
 
