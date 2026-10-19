@@ -1813,3 +1813,38 @@ a:focus-visible {
   width: 12rem;
   margin-top: 0.4rem;
 }
+
+/* Intake admin: reviewing the AI's test reads */
+.ai-review__table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+}
+.ai-review__table th,
+.ai-review__table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+.ai-review__table tr[data-mark='ok'] {
+  background: var(--ok-bg);
+}
+.ai-review__table tr[data-mark='wrong'] {
+  background: #fdecec;
+}
+.ai-review__marks {
+  white-space: nowrap;
+}
+.ai-review__marks .btn[aria-pressed='true'] {
+  font-weight: 700;
+  outline: 2px solid currentColor;
+}
+.ai-review__fix {
+  display: block;
+  margin-top: 0.35rem;
+  width: 100%;
+}
+.ai-review {
+  padding: 0 1rem 2rem;
+}

@@ -399,3 +399,60 @@ export function saveWorkerName(name: string) {
     // Private browsing: the name is asked again next time.
   }
 }
+
+/** One value from an AI reading of a whole sheet. */
+export interface SheetReadField {
+  key: string;
+  /** Exactly what is on the paper. */
+  written: string;
+  /** The value for the digital sheet. */
+  text: string;
+  dir: string;
+}
+
+/** An AI reading of a whole sheet, kept for review before it's trusted. */
+export interface SheetRead {
+  v: number;
+  model: string;
+  at: string;
+  name?: string;
+  phone?: string;
+  fields?: SheetReadField[];
+  needs_review?: boolean;
+  review_reasons?: string[];
+  unsure?: string[];
+  error?: string;
+}
+
+/** The admin's review of a reading: per value right or wrong (with the right value), and anything it missed. */
+export interface ReadReview {
+  marks: Record<string, { ok: boolean; fix?: string }>;
+  missed: string;
+  note: string;
+}
+
+export interface ReadForReview extends IntakeItem {
+  read_sheet: SheetRead;
+  read_review: ReadReview | null;
+  read_reviewed_by: string | null;
+  read_reviewed_at: string | null;
+}
+
+/** Sheets with a whole-sheet AI reading from the current instructions, not yet reviewed first. */
+export async function listReadsForReview(version = 2): Promise<ReadForReview[]> {
+  const rows = unwrap(
+    await supabase
+      .from('intake_items')
+      .select('*')
+      .not('read_sheet', 'is', null)
+      .eq('read_sheet->>v', String(version))
+      .order('read_reviewed_at', { ascending: true, nullsFirst: true })
+      .order('created_at')
+      .limit(200),
+  ) as ReadForReview[];
+  return rows;
+}
+
+export async function saveReadReview(id: string, review: ReadReview, by: string): Promise<void> {
+  unwrap(await supabase.rpc('save_read_review', { p_id: id, p_review: review, p_by: by }));
+}

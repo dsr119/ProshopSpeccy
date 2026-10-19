@@ -219,7 +219,7 @@ export function SheetPage() {
 }
 
 /** The paper sheet, zoomable and turnable, kept in view while typing; front and back when it has both. */
-function SheetPhoto({ item }: { item: IntakeItem }) {
+export function SheetPhoto({ item }: { item: IntakeItem }) {
   const [side, setSide] = useState<'front' | 'back'>('front');
   const path = side === 'back' && item.back_path ? item.back_path : item.object_path;
   const url = useAsync(() => intakePhotoUrl(item, path), [path]);

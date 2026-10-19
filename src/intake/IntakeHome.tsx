@@ -116,6 +116,13 @@ export function IntakeHome() {
       </div>
       {empty && <Notice>Nothing is waiting in the queue right now.</Notice>}
 
+      {isAdminName(name) && (
+        <p>
+          <Link className="btn" to="/ai-review">
+            AI test reads to review
+          </Link>
+        </p>
+      )}
       {isAdminName(name) && <PeopleStats />}
       {isAdminName(name) && <NameList />}
 
