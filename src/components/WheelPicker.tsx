@@ -1,17 +1,32 @@
 // A phone-style picker with scroll wheels side by side (like picking a date),
 // shown as a sheet at the bottom of the screen. Each wheel snaps to one item;
 // the item in the middle band is the chosen one. Items can also be tapped,
-// and the arrow keys move a focused wheel.
+// and the arrow keys move a focused wheel. Fraction wheels are drawn like a
+// ruler: the coarser the fraction, the longer its tick and the bigger its text.
 
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useScrollLock } from '../lib/useScrollLock';
 
-const ITEM_H = 44;
-const VISIBLE = 5;
+const ITEM_H = 32;
+const VISIBLE = 7;
 
 export interface WheelColumn {
   label: string;
-  options: Array<{ value: string; label: string }>;
+  options: Array<{ value: string; label: string; /** Small text after the label, e.g. a grip number. */ hint?: string }>;
+  /** Draws the options as ruler marks, for inch fractions. */
+  ruler?: boolean;
+}
+
+/** The ruler mark for a value: halves and wholes are the longest, then quarters, eighths, 16ths, 32nds and 64ths. */
+export function rulerMark(label: string): 2 | 4 | 8 | 16 | 32 | 64 {
+  // "4 13/32" follows its fraction part.
+  const d = Number(/(\d+)\/(\d+)\s*$/.exec(label)?.[2] ?? 1);
+  if (d <= 2) return 2;
+  if (d <= 4) return 4;
+  if (d <= 8) return 8;
+  if (d <= 16) return 16;
+  if (d <= 32) return 32;
+  return 64;
 }
 
 interface WheelPickerProps {
@@ -119,7 +134,7 @@ function Wheel({ column, index, onChange }: { column: WheelColumn; index: number
   return (
     <div
       ref={ref}
-      className="wheel"
+      className={`wheel${column.ruler ? ' wheel--ruler' : ''}`}
       role="listbox"
       aria-label={column.label}
       aria-activedescendant={`${column.label}-${index}`}
@@ -134,11 +149,20 @@ function Wheel({ column, index, onChange }: { column: WheelColumn; index: number
           id={`${column.label}-${i}`}
           role="option"
           aria-selected={i === index}
-          className={`wheel__item${i === index ? ' is-on' : ''}`}
+          aria-label={o.label}
+          className={`wheel__item${column.ruler ? ` wheel__item--d${rulerMark(o.label)}` : ''}${i === index ? ' is-on' : ''}`}
           style={{ height: ITEM_H }}
           onClick={() => scrollTo(i)}
         >
-          {o.label}
+          {column.ruler ? (
+            <>
+              <span className="wheel__tick" aria-hidden="true" />
+              <span className="wheel__label">{o.label}</span>
+              {o.hint && <span className="wheel__hint">{o.hint}</span>}
+            </>
+          ) : (
+            o.label
+          )}
         </div>
       ))}
     </div>

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
-import { createCustomer, loginAsStaff, unique } from './helpers';
+import { createCustomer, loginAsStaff, pickWheel, unique } from './helpers';
 
 const SAMPLE = { name: 'fictional-sheet.png', mimeType: 'image/png', buffer: readFileSync('public/assets/specSheet550wide.png') };
 
@@ -38,17 +38,20 @@ test('a finger lateral pitch points to its own side until its arrow is tapped, a
   await loginAsStaff(page);
   const id = await createCustomer(page, unique('Fictional Lateral'));
   await page.goto(`/customers/${id}/edit`);
-  // The box only holds the amount: one list, no left or right in it.
-  const middle = page.locator('#field-middle_lateral_pitch option');
-  await expect(middle.nth(1)).toHaveText('0"');
-  await expect(middle.nth(2)).toHaveText(/^1\/16"/);
-  await expect(page.locator('#field-middle_lateral_pitch optgroup')).toHaveCount(0);
+  // The box only holds the amount: one ruler wheel, no left or right in it.
+  await page.locator('#field-middle_lateral_pitch').click();
+  const middle = page.getByRole('dialog').getByRole('option');
+  await expect(middle.nth(0)).toHaveAccessibleName('0');
+  await expect(middle.nth(1)).toHaveAccessibleName('1/32');
+  await expect(middle.nth(1)).toHaveClass(/wheel__item--d32/);
+  await expect(middle.nth(4)).toHaveClass(/wheel__item--d8/);
+  await page.getByRole('button', { name: 'Clear' }).click();
   await expect(page.locator('.sheet [data-lateral="middle_lateral_pitch"]')).toHaveAttribute('data-dir', 'left');
   await expect(page.locator('.sheet [data-lateral="ring_lateral_pitch"]')).toHaveAttribute('data-dir', 'right');
 
   await page.getByLabel('Finger Tip').check();
-  await page.locator('#field-middle_lateral_pitch').selectOption('1/8');
-  await page.locator('#field-ring_lateral_pitch').selectOption('3/16');
+  await pickWheel(page, 'field-middle_lateral_pitch', '1/8');
+  await pickWheel(page, 'field-ring_lateral_pitch', '3/16');
   await page.locator('#flip-ring_lateral_pitch').click();
   await expect(page.locator('.sheet [data-lateral="ring_lateral_pitch"]')).toHaveAttribute('data-dir', 'left');
   await page.getByRole('button', { name: 'Save', exact: true }).click();

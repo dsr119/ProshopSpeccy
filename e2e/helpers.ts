@@ -68,6 +68,15 @@ export async function pickSpan(page: Page, field: string, value: string) {
   await expect(picker).toHaveCount(0);
 }
 
+/** Picks an inch size such as "13/32" on a box's ruler wheel. */
+export async function pickWheel(page: Page, id: string, value: string) {
+  await page.locator(`#${id}`).click();
+  const picker = page.getByRole('dialog');
+  await picker.getByRole('listbox', { name: 'Size' }).getByRole('option', { name: value, exact: true }).click();
+  await picker.getByRole('button', { name: 'Done' }).click();
+  await expect(picker).toHaveCount(0);
+}
+
 /** Expects a span box to hold this value. */
 export async function expectSpan(page: Page, field: string, value: string) {
   await expect(page.locator(`#field-${field}`)).toHaveAttribute('data-value', value);
@@ -90,18 +99,18 @@ export async function fillField(page: Page, field: string, value: string, dir?: 
     await chooseSpanType(page, SPAN_TYPE_BUTTONS[span[2]]);
     await pickSpan(page, field, value);
   } else if (/^(middle|ring)_lateral_pitch$/.test(field)) {
-    await page.locator(`#field-${field}`).selectOption(value);
+    await pickWheel(page, `field-${field}`, value);
     const flip = page.locator(`#flip-${field}`);
     if (dir && dir !== 'none' && value !== '0' && (await flip.getAttribute('data-dir')) !== dir) await flip.click();
   } else if (field.endsWith('_pitch')) {
     const box = !dir || dir === 'none' ? (field.endsWith('fr_pitch') ? 'forward' : 'left') : dir;
-    await page.locator(`#field-${field}-${box}`).selectOption(value);
+    await pickWheel(page, `field-${field}-${box}`, value);
   } else {
     const input = page.locator(`#field-${field}`);
     // Measurements kept off the sheet are under "More measurements".
     if (!(await input.isVisible())) await page.getByText('More measurements').click();
-    // Holes, grip sizes, bridge and slug size scroll through a list; the rest are typed.
-    if ((await input.evaluate((el) => el.tagName)) === 'SELECT') await input.selectOption(value);
+    // Holes, grip sizes, bridge and slug size scroll on a wheel; the rest are typed.
+    if ((await input.getAttribute('aria-haspopup')) === 'dialog') await pickWheel(page, `field-${field}`, value);
     else await input.fill(value);
   }
 }

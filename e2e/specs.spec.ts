@@ -26,6 +26,10 @@ test('mixed fractions, pitch directions, blank and zero save and reload in the r
   // Selecting a box on the sheet focuses its form control.
   await page.locator('.sheet [data-field="bridge"]').click();
   await expect(page.locator('#field-bridge')).toBeFocused();
+  // A size box opens its wheel; Escape closes it unchanged.
+  await expect(page.getByRole('dialog', { name: 'Bridge' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 
   await page.getByLabel(/Change note/).fill('First fitting');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
@@ -86,7 +90,7 @@ test('editing creates a revision with the right author; cancel leaves saved data
   // Cancel with unsaved changes asks first and keeps saved data.
   await page.getByRole('link', { name: 'Edit measurements' }).click();
   await fill(page, 'middle_hole', '7/8');
-  await expect(page.locator('#field-middle_hole')).toHaveValue('7/8');
+  await expect(page.locator('#field-middle_hole')).toHaveAttribute('data-value', '7/8');
   await page.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByRole('dialog')).toContainText('Discard unsaved changes?');
   await page.getByRole('button', { name: 'Discard changes' }).click();
@@ -153,7 +157,7 @@ test('concurrent edits show a conflict instead of overwriting', async ({ page, b
   await expect(dialog).toContainText('Riley Staff');
   await expect(dialog.locator('.changes')).toContainText('5/8');
   await expect(dialog.locator('.changes')).toContainText('9/16');
-  await expect(page.locator('#field-ring_hole')).toHaveValue('9/16');
+  await expect(page.locator('#field-ring_hole')).toHaveAttribute('data-value', '9/16');
 
   // Keep mine, review, then save explicitly on top of theirs.
   await dialog.getByRole('button', { name: 'Keep my changes and review' }).click();
@@ -289,15 +293,17 @@ test('grips add a grip type and grip sizes, and limit the finger holes', async (
   await expect(page.locator('#field-middle_grip_brand')).toHaveValue('Turbo');
   await expect(page.locator('#field-ring_grip_brand')).toHaveValue('Turbo');
   // Grip holes start at 31/32.
-  await expect(page.locator('#field-middle_hole')).toHaveValue('31/32');
-  await expect(page.locator('#field-ring_hole')).toHaveValue('31/32');
+  await expect(page.locator('#field-middle_hole')).toHaveAttribute('data-value', '31/32');
+  await expect(page.locator('#field-ring_hole')).toHaveAttribute('data-value', '31/32');
   await page.locator('#field-ring_grip_brand').selectOption('Other');
   await expect(page.getByText('Grip brand is Other')).toBeVisible();
   await page.locator('#field-middle_inserts').selectOption('Oval No Mesh');
   await page.locator('#field-ring_inserts').selectOption('Lifts');
   await fill(page, 'middle_grip_size', '37/64');
   await fill(page, 'middle_hole', '31/32');
-  await expect(page.locator('#field-ring_hole option')).toHaveText(['–', '7/8"', '31/32"', '1 1/32"']);
+  await page.locator('#field-ring_hole').click();
+  await expect(page.getByRole('dialog').getByRole('option')).toHaveText(['7/8', '31/32', '1 1/32']);
+  await page.keyboard.press('Escape');
   await fill(page, 'bridge', '1/4');
   await page.locator('#field-thumb_insert_type').selectOption('Turbo');
   await expect(page.locator('#field-thumb_hole')).toHaveCount(0);

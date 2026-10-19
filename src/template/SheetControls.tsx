@@ -1,6 +1,7 @@
 // Controls laid over the sheet in edit mode, so every value is typed or
-// scrolled right on the picture. Pickers are native selects (a scroll wheel on
-// phones) kept invisible over the box, which still shows the formatted value.
+// scrolled right on the picture. Pickers are kept invisible over the box, which
+// still shows the formatted value: inch sizes open ruler-style wheels, and
+// word lists are native selects (a scroll wheel on phones).
 
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -24,7 +25,6 @@ import {
   DEFAULT_GRIP_HOLE,
   joinInches,
   splitInches,
-  decimalHint,
   gripNumber,
   isInterchangeable,
   pickerOptions,
@@ -46,7 +46,6 @@ export interface SheetEditor {
 
 const FIRST_OF_AXIS = new Set(['forward', 'left']);
 
-const inches = (a: string) => (a === '0' ? '0"' : `${a}"  (${decimalHint(a)})`);
 
 /** The id of a slot's control; pitch boxes for one direction add it, e.g. field-thumb_fr_pitch-reverse. */
 export const controlId = (slot: OverlaySlot) => `field-${slot.field}${slot.dir ? `-${slot.dir}` : ''}`;
@@ -101,24 +100,17 @@ export function SlotControl({ slot, editor, label }: { slot: OverlaySlot; editor
     const owns = v.text.trim() !== '' && (dir ? dir === slot.dir : FIRST_OF_AXIS.has(slot.dir));
     const current = owns ? v.text : '';
     return (
-      <select
+      <FractionWheel
         {...common}
-        className="slot__picker"
         value={current}
-        onChange={(e) => {
-          const t = e.target.value;
+        options={withLegacy(PITCH_AMOUNTS, current)}
+        start="0"
+        onPick={(t) => {
           if (!t) {
             if (owns) setField(slot.field, { text: '', dir: '' });
           } else setField(slot.field, { text: t, dir: isZero(t) ? 'none' : slot.dir });
         }}
-      >
-        <option value="">–</option>
-        {withLegacy(PITCH_AMOUNTS, current).map((a) => (
-          <option key={a} value={a}>
-            {inches(a)}
-          </option>
-        ))}
-      </select>
+      />
     );
   }
 
@@ -126,24 +118,17 @@ export function SlotControl({ slot, editor, label }: { slot: OverlaySlot; editor
     // One box per finger holds the amount; the arrow beside it shows the direction and flips it.
     const t = v.text.trim();
     return (
-      <select
+      <FractionWheel
         {...common}
-        className="slot__picker"
         value={t}
-        onChange={(e) => {
-          const a = e.target.value;
+        options={withLegacy(PITCH_AMOUNTS, t)}
+        start="0"
+        onPick={(a) => {
           if (!a) setField(slot.field, { text: '', dir: '' });
           else if (isZero(a)) setField(slot.field, { text: a, dir: 'none' });
           else setField(slot.field, { text: a, dir: lateralDir(v.dir, slot.lean!) });
         }}
-      >
-        <option value="">–</option>
-        {withLegacy(PITCH_AMOUNTS, t).map((a) => (
-          <option key={a} value={a}>
-            {inches(a)}
-          </option>
-        ))}
-      </select>
+      />
     );
   }
 
@@ -154,14 +139,13 @@ export function SlotControl({ slot, editor, label }: { slot: OverlaySlot; editor
     // Holes, grip sizes, bridge and slug size scroll through their fixed sizes.
     const grip = slot.field.endsWith('_grip_size');
     return (
-      <select {...common} className="slot__picker" value={v.text} onChange={(e) => setField(slot.field, { text: e.target.value })}>
-        <option value="">–</option>
-        {withLegacy(options, v.text).map((o) => (
-          <option key={o} value={o}>
-            {grip && gripNumber(o) != null ? `${o}"  (${gripNumber(o)})` : `${o}"`}
-          </option>
-        ))}
-      </select>
+      <FractionWheel
+        {...common}
+        value={v.text}
+        options={withLegacy(options, v.text)}
+        hint={grip ? (o) => (gripNumber(o) != null ? `(${gripNumber(o)})` : undefined) : undefined}
+        onPick={(o) => setField(slot.field, { text: o })}
+      />
     );
   }
 
@@ -258,9 +242,73 @@ export function SpanTypeButtons({ current, onPick, onFocus }: { current: SpanTyp
   );
 }
 
+/**
+ * A box that opens one ruler-style wheel of inch sizes. Done saves the value in
+ * the middle band; Clear empties the box.
+ */
+function FractionWheel({
+  id,
+  'aria-label': label,
+  'data-control': control,
+  onFocus,
+  value,
+  options,
+  start,
+  hint,
+  onPick,
+}: {
+  id: string;
+  'aria-label': string;
+  'data-control': FieldKey;
+  onFocus: () => void;
+  value: string;
+  options: string[];
+  /** Where the wheel opens when the box is empty; the middle of the list unless given. */
+  start?: string;
+  hint?: (option: string) => string | undefined;
+  onPick: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const close = () => setOpen(false);
+  const column: WheelColumn = { label: 'Size', ruler: true, options: options.map((o) => ({ value: o, label: o, hint: hint?.(o) })) };
+  return (
+    <>
+      <button
+        type="button"
+        id={id}
+        className="slot__picker"
+        aria-label={label}
+        aria-haspopup="dialog"
+        data-control={control}
+        data-value={value}
+        onFocus={onFocus}
+        onClick={() => setOpen(true)}
+      />
+      {open &&
+        createPortal(
+          <WheelPicker
+            title={label}
+            columns={[column]}
+            initial={[value || start || options[Math.floor(options.length / 2)]]}
+            onDone={([picked]) => {
+              onPick(picked);
+              close();
+            }}
+            onClear={() => {
+              onPick('');
+              close();
+            }}
+            onClose={close}
+          />,
+          document.body,
+        )}
+    </>
+  );
+}
+
 const SPAN_COLUMNS: WheelColumn[] = [
   { label: 'Inches', options: SPAN_WHOLES.map((w) => ({ value: w, label: w })) },
-  { label: 'Fraction', options: SPAN_FRACTIONS.map((f) => ({ value: f, label: f })) },
+  { label: 'Fraction', ruler: true, options: SPAN_FRACTIONS.map((f) => ({ value: f, label: f })) },
 ];
 
 /** A span box opens one picker with two wheels side by side: whole inches and thirty-seconds, like a date. */
@@ -353,9 +401,9 @@ const wholes = (max: number) => Array.from({ length: max + 1 }, (_, i) => ({ val
 const FRACTIONS = SIXTEENTHS.map((f) => ({ value: f, label: f }));
 const PAP_COLUMNS: WheelColumn[] = [
   { label: 'Horizontal inches', options: wholes(PAP_MAX) },
-  { label: 'Horizontal fraction', options: FRACTIONS },
+  { label: 'Horizontal fraction', ruler: true, options: FRACTIONS },
   { label: 'Vertical inches', options: wholes(2) },
-  { label: 'Vertical fraction', options: FRACTIONS },
+  { label: 'Vertical fraction', ruler: true, options: FRACTIONS },
 ];
 
 /** The P.A.P box opens wheels for horizontal and vertical inches and fractions, with Up or Down. */
