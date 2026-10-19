@@ -15,7 +15,7 @@ import {
   type CustomerInput,
   type CustomerSearchRow,
 } from '../customers/api';
-import { finishAndNext, getItem, intakePhotoUrl, preloadUpNext, releaseItem, readingDraft, removeItem, type CopiedPhotos, type IntakeItem } from './api';
+import { finishAndNext, getItem, intakePhotoUrl, preloadUpNext, releaseItem, removeItem, type CopiedPhotos, type IntakeItem } from './api';
 import { appCustomerUrl } from './IntakeHome';
 
 const bowlerKey = (itemId: string) => `proshop:intake:bowler:${itemId}`;
@@ -157,7 +157,6 @@ export function SheetPage() {
               embed={{
                 customerId,
                 saveLabel: 'Save and send to the app',
-                prefill: readingDraft(it),
                 onCancel: () => chooseBowler(null),
                 onSaved: async (result) => {
                   const next = await finishAndNext(it, customerId, result.revision_id, name, copied.current);

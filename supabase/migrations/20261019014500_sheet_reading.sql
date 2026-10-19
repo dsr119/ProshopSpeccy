@@ -1,8 +1,7 @@
 -- What the read-sheets function read off a paper sheet photo with AI: the
--- bowler's name and phone, and the measurements it found (read_sheet:
--- {fields: {key: {text, dir}}, unsure: [keys]}), used as a suggestion that
--- pre-fills the digital sheet while it is typed in. Only that function (with
--- the service role) writes these.
+-- bowler's name and phone, shown as a suggestion while the sheet is typed in.
+-- read_sheet holds the measurements from a whole-sheet trial on 20 sheets and
+-- is not used by the app. Only that function (with the service role) writes these.
 
 alter table public.intake_items
   add column read_name text,
