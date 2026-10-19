@@ -120,6 +120,7 @@ function fingerSlots(side: 'left' | 'right'): OverlaySlot[] {
 export const OVERLAY_SLOTS: OverlaySlot[] = [
   ...fingerSlots('left'),
   ...fingerSlots('right'),
+  { field: 'grip_type', style: 'box', framed: true, when: 'grips', x: 226, y: 36, w: 87, h: 22 },
   { field: 'bridge', style: 'box', framed: true, x: 230, y: 70, w: 78, h: 40 },
   { field: 'thumb_od', style: 'half', x: THUMB.cx - 40, y: THUMB.cy - 32, w: 80, h: 26 },
   { field: 'thumb_hole', style: 'half', x: THUMB.cx - 40, y: THUMB.cy + 6, w: 80, h: 26 },
@@ -180,21 +181,13 @@ export const SHEET_DOTTED: DottedLine[] = [
   { x1: 352, x2: 482, y: 424 },
 ];
 
-/** Grips or no grips above the bridge; with grips, STD or Vaccu under them. */
+/** Grips or no grips above the bridge; with grips, the grip type box sits under them. */
 export const CHOICE_GROUPS: ChoiceGroup[] = [
   {
     field: 'finger_grips',
     options: [
       { value: 'no_grips', label: 'No Grips', x: 226, y: 8, w: 42, h: 22 },
       { value: 'grips', label: 'Grips', x: 271, y: 8, w: 42, h: 22 },
-    ],
-  },
-  {
-    field: 'grip_type',
-    when: 'grips',
-    options: [
-      { value: 'std', label: 'STD', x: 226, y: 36, w: 42, h: 22 },
-      { value: 'vaccu', label: 'Vaccu', x: 271, y: 36, w: 42, h: 22 },
     ],
   },
 ];

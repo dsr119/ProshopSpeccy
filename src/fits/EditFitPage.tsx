@@ -343,6 +343,20 @@ export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
 
         <div className="editor__form">
           <fieldset className="fieldset">
+            <legend>{GROUP_LABELS.notes}</legend>
+            {FIELDS.filter((f) => f.group === 'notes').map((f) => (
+              <FieldControl
+                key={f.key}
+                def={f}
+                value={draft[f.key]}
+                error={visibleErrors[f.key]}
+                onChange={(patch) => setField(f.key, patch)}
+                onFocus={() => setActiveField(f.key)}
+              />
+            ))}
+          </fieldset>
+
+          <fieldset className="fieldset">
             <legend>{GROUP_LABELS.details}</legend>
             {FIELDS.filter((f) => f.group === 'details' && !(noThumb && f.key === 'thumb_system_details')).map((f) => (
               <FieldControl
@@ -605,7 +619,7 @@ function FieldControl({
     return (
       <label className="field">
         <span className="field__label">{def.label}</span>
-        <textarea id={id} rows={3} value={value.text} onChange={(e) => onChange({ text: e.target.value })} onFocus={onFocus} aria-invalid={!!error} aria-describedby={describedBy} />
+        <textarea id={id} rows={def.group === 'notes' ? 6 : 3} value={value.text} onChange={(e) => onChange({ text: e.target.value })} onFocus={onFocus} aria-invalid={!!error} aria-describedby={describedBy} />
         {error && <span id={errId} className="field-error">{error}</span>}
       </label>
     );

@@ -17,7 +17,19 @@ import {
   type CustomerSearchRow,
   type DuplicateRow,
 } from '../customers/api';
-import { finishAndNext, getItem, intakePhotoUrl, preloadUpNext, releaseItem, removeItem, type CopiedPhotos, type IntakeItem } from './api';
+import {
+  finishAndNext,
+  getItem,
+  intakePhotoUrl,
+  passAndNext,
+  PASS_REASONS,
+  preloadUpNext,
+  releaseItem,
+  removeItem,
+  type CopiedPhotos,
+  type IntakeItem,
+  type PassReason,
+} from './api';
 import { appCustomerUrl } from './IntakeHome';
 
 const bowlerKey = (itemId: string) => `proshop:intake:bowler:${itemId}`;
@@ -47,7 +59,7 @@ export function SheetPage() {
   const item = useAsync(() => getItem(itemId), [itemId]);
   const [customerId, setCustomerId] = useState<string | null>(() => readBowler(itemId));
   const [error, setError] = useState<AppError | null>(null);
-  const [settingAside, setSettingAside] = useState(false);
+  const [passing, setPassing] = useState(false);
   const [removing, setRemoving] = useState(false);
   const copied = useRef<CopiedPhotos>({});
 
@@ -128,8 +140,8 @@ export function SheetPage() {
           <button type="button" className="btn btn--small" onClick={putBack}>
             Put back in the queue
           </button>
-          <button type="button" className="btn btn--small" onClick={() => setSettingAside(true)}>
-            Can't read it
+          <button type="button" className="btn btn--small" onClick={() => setPassing(true)}>
+            Pass
           </button>
           <button type="button" className="btn btn--small btn--danger-outline" onClick={() => setRemoving(true)}>
             Delete sheet
@@ -143,8 +155,9 @@ export function SheetPage() {
           </Notice>
         )}
         {it.status !== 'working' && !someoneElse && (
-          <Notice>This sheet is {it.status === 'unreadable' ? 'set aside as unreadable' : 'waiting in the queue'}.</Notice>
+          <Notice>This sheet is {it.status === 'unreadable' ? 'in the passed pile' : 'waiting in the queue'}.</Notice>
         )}
+        {it.pass_reason && <PassedNote item={it} />}
 
         {customerId ? (
           <>
@@ -183,13 +196,15 @@ export function SheetPage() {
         }}
       />
 
-      <SetAsideDialog
-        open={settingAside}
-        onClose={() => setSettingAside(false)}
-        onDone={async (note) => {
-          await releaseItem(itemId, true, note);
+      <PassDialog
+        key={itemId}
+        open={passing}
+        onClose={() => setPassing(false)}
+        onDone={async (reason, note) => {
+          const next = await passAndNext(it, reason, note, name);
           keepBowler(itemId, null);
-          navigate('/');
+          setPassing(false);
+          navigate(next ? `/sheet/${next.id}` : '/?passed=1&empty=1');
         }}
       />
     </div>
@@ -531,33 +546,54 @@ function RemoveSheetDialog({ open, onClose, onDone }: { open: boolean; onClose: 
   );
 }
 
-function SetAsideDialog({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: (note: string) => Promise<void> }) {
+/** Who passed this sheet before, and why. */
+function PassedNote({ item }: { item: IntakeItem }) {
+  if (!item.pass_reason) return null;
+  return (
+    <p className="muted small" data-testid="passed-note">
+      Passed{item.passed_by ? ` by ${item.passed_by}` : ''}: <strong>{PASS_REASONS[item.pass_reason]}</strong>
+      {item.note ? ` · ${item.note}` : ''}
+    </p>
+  );
+}
+
+function PassDialog({
+  open,
+  onClose,
+  onDone,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onDone: (reason: PassReason, note: string) => Promise<void>;
+}) {
+  const [reason, setReason] = useState<PassReason | null>(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
   return (
     <Dialog
       open={open}
-      title="Set this sheet aside?"
+      title="Pass this sheet?"
       onClose={onClose}
       actions={
         <>
           <button
             type="button"
             className="btn btn--primary"
-            disabled={busy}
+            disabled={busy || !reason}
             onClick={async () => {
+              if (!reason) return;
               setBusy(true);
               setError(null);
               try {
-                await onDone(note);
+                await onDone(reason, note);
               } catch (e) {
                 setError(toAppError(e));
                 setBusy(false);
               }
             }}
           >
-            Set aside
+            {busy ? 'Passing…' : 'Pass and get the next one'}
           </button>
           <button type="button" className="btn" onClick={onClose}>
             Keep it
@@ -566,10 +602,19 @@ function SetAsideDialog({ open, onClose, onDone }: { open: boolean; onClose: () 
       }
     >
       <ErrorBanner error={error} />
-      <p>It leaves the queue until someone puts it back. Say what's wrong so the next person knows.</p>
+      <p>It goes to the passed pile on the queue page, where someone can look at it later.</p>
+      <fieldset className="pass-reasons">
+        <legend>Why?</legend>
+        {(Object.entries(PASS_REASONS) as Array<[PassReason, string]>).map(([key, label]) => (
+          <label key={key} className={`pass-reason${reason === key ? ' is-on' : ''}`}>
+            <input type="radio" name="pass-reason" value={key} checked={reason === key} onChange={() => setReason(key)} />
+            {label}
+          </label>
+        ))}
+      </fieldset>
       <label>
-        What's wrong <span className="muted">(optional)</span>
-        <input value={note} maxLength={500} placeholder="e.g. Blurry, retake the photo" onChange={(e) => setNote(e.target.value)} />
+        Note <span className="muted">(optional)</span>
+        <input value={note} maxLength={500} placeholder="e.g. Ring span smudged" onChange={(e) => setNote(e.target.value)} />
       </label>
     </Dialog>
   );

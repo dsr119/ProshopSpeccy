@@ -107,9 +107,17 @@ export async function fillField(page: Page, field: string, value: string, dir?: 
 
 const SPAN_TYPE_BUTTONS = { cut_to_cut: 'Cut to Cut', full_span: 'Full Span', cut_to_outer: 'Cut to Outer' } as const;
 
-/** Chooses Grips or No Grips above the bridge, and STD or Vaccu when there are grips. */
-export async function chooseGrips(page: Page, grips: 'Grips' | 'No Grips', type?: 'STD' | 'Vaccu') {
+/** Chooses Grips or No Grips above the bridge, and the grip type when there are grips. */
+export async function chooseGrips(page: Page, grips: 'Grips' | 'No Grips', type?: 'STD' | 'Vaccu' | 'Oval Mesh' | 'Oval No Mesh' | 'Lifts') {
   const button = page.getByRole('button', { name: grips, exact: true });
   if ((await button.getAttribute('aria-pressed')) !== 'true') await button.click();
-  if (type) await page.getByRole('button', { name: type, exact: true }).click();
+  if (type) await page.locator('#field-grip_type').selectOption({ label: type });
+}
+
+/** Passes the open intake sheet with a reason. */
+export async function passSheet(page: Page, reason: string, note?: string) {
+  await page.getByRole('button', { name: 'Pass', exact: true }).click();
+  await page.getByRole('radio', { name: reason }).check();
+  if (note) await page.getByRole('dialog').getByLabel(/^Note/).fill(note);
+  await page.getByRole('button', { name: 'Pass and get the next one' }).click();
 }

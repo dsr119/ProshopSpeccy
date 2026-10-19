@@ -33,7 +33,21 @@ export interface IntakeItem {
   read_name?: string | null;
   read_phone?: string | null;
   read_unsure?: boolean | null;
+  /** Why the last person passed it, when they did. */
+  pass_reason?: PassReason | null;
+  passed_by?: string | null;
+  passed_at?: string | null;
 }
+
+export const PASS_REASONS = {
+  too_blurry: 'Too blurry',
+  dont_understand: "Don't understand",
+  too_sloppy: 'Too sloppy',
+  no_name: 'No name',
+  incomplete_specs: 'Incomplete specs',
+  no_specs: 'No specs',
+} as const;
+export type PassReason = keyof typeof PASS_REASONS;
 
 export type IntakeCounts = Record<IntakeStatus, number>;
 
@@ -50,12 +64,14 @@ export async function getCounts(): Promise<IntakeCounts> {
 }
 
 export async function listItems(status: IntakeStatus, limit = 50): Promise<IntakeItem[]> {
+  // Newest first for finished and passed sheets; the queue itself in the order it is worked.
+  const order = status === 'done' ? 'done_at' : status === 'unreadable' ? 'passed_at' : 'created_at';
   return unwrap(
     await supabase
       .from('intake_items')
       .select('*')
       .eq('status', status)
-      .order(status === 'done' ? 'done_at' : 'created_at', { ascending: status !== 'done' })
+      .order(order, { ascending: order === 'created_at', nullsFirst: false })
       .limit(limit),
   ) as IntakeItem[];
 }
@@ -312,6 +328,15 @@ export async function finishAndNext(
     if (err.kind !== 'conflict') throw err;
     return claimNext(name).catch(() => null);
   }
+  const next = (res.data as { next: IntakeItem | null }).next;
+  return next?.id ? handOut(next) : null;
+}
+
+/** Passes a sheet with a reason (it goes to the passed pile) and takes the next one for the same person. */
+export async function passAndNext(item: IntakeItem, reason: PassReason, note: string, name: string): Promise<IntakeItem | null> {
+  handedOut.delete(item.id);
+  const res = await supabase.rpc('pass_intake', { p_id: item.id, p_reason: reason, p_note: note.trim() || null, p_name: name });
+  if (res.error) throw toAppError(res.error);
   const next = (res.data as { next: IntakeItem | null }).next;
   return next?.id ? handOut(next) : null;
 }

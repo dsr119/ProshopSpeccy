@@ -16,6 +16,8 @@ import {
   SPAN_FIELDS,
   PAP_MAX,
   THUMB_INSERT_TYPES,
+  GRIP_TYPE_LABELS,
+  type GripType,
   joinInches,
   splitInches,
   decimalHint,
@@ -127,6 +129,19 @@ export function SlotControl({ slot, editor, label }: { slot: OverlaySlot; editor
         {withLegacy(options, v.text).map((o) => (
           <option key={o} value={o}>
             {grip && gripNumber(o) != null ? `${o}"  (${gripNumber(o)})` : `${o}"`}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  if (FIELD_BY_KEY[slot.field].kind === 'enum_grip_type') {
+    return (
+      <select {...common} className="slot__picker" value={v.text} onChange={(e) => setField(slot.field, { text: e.target.value })}>
+        <option value="">–</option>
+        {withLegacy(Object.keys(GRIP_TYPE_LABELS), v.text).map((t) => (
+          <option key={t} value={t}>
+            {GRIP_TYPE_LABELS[t as GripType] ?? t}
           </option>
         ))}
       </select>

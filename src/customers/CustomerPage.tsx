@@ -34,7 +34,7 @@ export function FitNotes({ snapshot }: { snapshot: Snapshot | null }) {
   const items: Array<[string, unknown]> = [
     ['Finger inserts', snapshot?.finger_insert_details],
     ...(noThumb ? [] : ([['Thumb system', snapshot?.thumb_system_details]] as Array<[string, unknown]>)),
-    ['Fitting notes', snapshot?.fitting_notes],
+    ['Notes', snapshot?.fitting_notes],
   ];
   return (
     <dl className="fit-notes">
