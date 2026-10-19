@@ -29,6 +29,7 @@ import {
   type CopiedPhotos,
   type IntakeItem,
   type PassReason,
+  isAdminName,
 } from './api';
 import { appCustomerUrl } from './IntakeHome';
 
@@ -157,7 +158,12 @@ export function SheetPage() {
         {it.status !== 'working' && !someoneElse && (
           <Notice>This sheet is {it.status === 'unreadable' ? 'in the passed pile' : 'waiting in the queue'}.</Notice>
         )}
-        {it.pass_reason && <PassedNote item={it} />}
+        {(it.pass_reason || it.passed_at) && <PassedNote item={it} />}
+        {it.back_path && (
+          <Notice tone="warn">
+            <strong>This paper has a back.</strong> Tap Back on the photo to see what's written on it.
+          </Notice>
+        )}
 
         {customerId ? (
           <>
@@ -198,6 +204,7 @@ export function SheetPage() {
 
       <PassDialog
         key={itemId}
+        reasonOptional={isAdminName(name)}
         open={passing}
         onClose={() => setPassing(false)}
         onDone={async (reason, note) => {
@@ -548,10 +555,15 @@ function RemoveSheetDialog({ open, onClose, onDone }: { open: boolean; onClose: 
 
 /** Who passed this sheet before, and why. */
 function PassedNote({ item }: { item: IntakeItem }) {
-  if (!item.pass_reason) return null;
+  if (!item.pass_reason && !item.passed_at) return null;
   return (
     <p className="muted small" data-testid="passed-note">
-      Passed{item.passed_by ? ` by ${item.passed_by}` : ''}: <strong>{PASS_REASONS[item.pass_reason]}</strong>
+      Passed{item.passed_by ? ` by ${item.passed_by}` : ''}
+      {item.pass_reason && (
+        <>
+          : <strong>{PASS_REASONS[item.pass_reason]}</strong>
+        </>
+      )}
       {item.note ? ` · ${item.note}` : ''}
     </p>
   );
@@ -561,10 +573,13 @@ function PassDialog({
   open,
   onClose,
   onDone,
+  reasonOptional,
 }: {
   open: boolean;
   onClose: () => void;
-  onDone: (reason: PassReason, note: string) => Promise<void>;
+  onDone: (reason: PassReason | null, note: string) => Promise<void>;
+  /** Signed in as admin, a sheet can be passed without a reason. */
+  reasonOptional?: boolean;
 }) {
   const [reason, setReason] = useState<PassReason | null>(null);
   const [note, setNote] = useState('');
@@ -580,9 +595,9 @@ function PassDialog({
           <button
             type="button"
             className="btn btn--primary"
-            disabled={busy || !reason}
+            disabled={busy || (!reason && !reasonOptional)}
             onClick={async () => {
-              if (!reason) return;
+              if (!reason && !reasonOptional) return;
               setBusy(true);
               setError(null);
               try {
@@ -604,7 +619,7 @@ function PassDialog({
       <ErrorBanner error={error} />
       <p>It goes to the passed pile on the queue page, where someone can look at it later.</p>
       <fieldset className="pass-reasons">
-        <legend>Why?</legend>
+        <legend>Why?{reasonOptional && <span className="muted"> (optional)</span>}</legend>
         {(Object.entries(PASS_REASONS) as Array<[PassReason, string]>).map(([key, label]) => (
           <label key={key} className={`pass-reason${reason === key ? ' is-on' : ''}`}>
             <input type="radio" name="pass-reason" value={key} checked={reason === key} onChange={() => setReason(key)} />
