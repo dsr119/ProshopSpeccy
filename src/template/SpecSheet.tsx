@@ -26,6 +26,7 @@ import {
 import {
   CHOICE_GROUPS,
   NO_THUMB_H,
+  FOOTER_SIDE,
   OVERLAY_SLOTS,
   SHEET_ARROWS,
   SHEET_CIRCLES,
@@ -43,7 +44,7 @@ import { ChoiceButtons, PapControl, SlotControl, SpanTypeButtons, type SheetEdit
 
 /** Boxes typed into directly in edit mode (the inserts); everything else is a scroll picker. */
 function isTyped(slot: OverlaySlot) {
-  return FIELD_BY_KEY[slot.field].kind === 'text_short';
+  return FIELD_BY_KEY[slot.field].kind === 'text_short' && slot.field !== 'middle_inserts' && slot.field !== 'ring_inserts';
 }
 
 /** The span type the sheet shows; cut to cut until another is chosen. */
@@ -220,13 +221,14 @@ export function SpecSheet({ display: shown, editor, activeField, caption }: Spec
           />
         )}
         {editor && choices.map(({ group, value }) => <ChoiceButtons key={group.field} group={group} value={value} editor={editor} sheetH={height} />)}
+        {!noThumb && <SheetFooter display={display} editor={editor} activeField={activeField} side />}
       </div>
-      <SheetFooter display={display} editor={editor} activeField={activeField} />
+      {noThumb && <SheetFooter display={display} editor={editor} activeField={activeField} />}
     </figure>
   );
 }
 
-/** Ball motion and who wrote the specs, along the bottom of the sheet. */
+/** Ball motion and who wrote the specs: down the left of the drawing, or under it on a no-thumb sheet. */
 export const FOOTER_FIELDS: Array<FieldKey | 'pap'> = ['rev_rate', 'axis_rotation', 'axis_tilt', 'speed', 'pap', 'written_by'];
 
 /** The P.A.P cell: horizontal and vertical together, picked on one set of wheels. */
@@ -247,9 +249,24 @@ function PapCell({ display, editor, active }: { display: DisplayFn; editor?: She
   );
 }
 
-function SheetFooter({ display, editor, activeField }: { display: DisplayFn; editor?: SheetEditor; activeField?: FieldKey | null }) {
+function SheetFooter({
+  display,
+  editor,
+  activeField,
+  side,
+}: {
+  display: DisplayFn;
+  editor?: SheetEditor;
+  activeField?: FieldKey | null;
+  /** Stacked in the empty space down the left of the drawing, under the left finger. */
+  side?: boolean;
+}) {
+  const r = FOOTER_SIDE;
   return (
-    <dl className="sheet-footer">
+    <dl
+      className={`sheet-footer${side ? ' sheet-footer--side' : ''}`}
+      style={side ? { left: pctX(r.x), top: pctY(r.y), width: pctX(r.w), height: pctY(r.h) } : undefined}
+    >
       {FOOTER_FIELDS.map((key) => {
         if (key === 'pap')
           return (

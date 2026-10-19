@@ -191,15 +191,11 @@ export function spanField(finger: 'middle' | 'ring', type: SpanType | '' | null 
 }
 
 export type Grips = 'no_grips' | 'grips';
-export type GripType = 'std' | 'vaccu' | 'oval_mesh' | 'oval_no_mesh' | 'lifts';
+export type GripType = 'std' | 'vaccu';
 export const GRIPS_LABELS: Record<Grips, string> = { no_grips: 'No Grips', grips: 'Grips' };
-export const GRIP_TYPE_LABELS: Record<GripType, string> = {
-  std: 'STD',
-  vaccu: 'Vaccu',
-  oval_mesh: 'Oval Mesh',
-  oval_no_mesh: 'Oval No Mesh',
-  lifts: 'Lifts',
-};
+export const GRIP_TYPE_LABELS: Record<GripType, string> = { std: 'STD', vaccu: 'Vaccu' };
+/** What goes in a finger's Inserts line above the hole. */
+export const FINGER_INSERT_TYPES = ['Oval Mesh', 'Oval No Mesh', 'Lifts'] as const;
 
 /** n/64 inch as reduced text, e.g. 72 → "1 1/8". */
 function sixtyFourths(i: number): string {
@@ -401,7 +397,7 @@ export function validateDraft(draft: Draft): DraftErrors {
     if (f.kind === 'enum_thumb_insert' && trimmed && !(THUMB_INSERT_TYPES as readonly string[]).includes(trimmed))
       errors[f.key] = `Choose ${THUMB_INSERT_TYPES.join(', ')}`;
     if (f.kind === 'enum_grips' && trimmed && !(trimmed in GRIPS_LABELS)) errors[f.key] = 'Choose grips or no grips';
-    if (f.kind === 'enum_grip_type' && trimmed && !(trimmed in GRIP_TYPE_LABELS)) errors[f.key] = `Choose ${Object.values(GRIP_TYPE_LABELS).join(', ')}`;
+    if (f.kind === 'enum_grip_type' && trimmed && !(trimmed in GRIP_TYPE_LABELS)) errors[f.key] = 'Choose STD or Vaccu';
     if (f.kind === 'enum_play_style' && trimmed && !(trimmed in PLAY_STYLE_LABELS)) errors[f.key] = 'Choose one or two handed';
     if (f.kind === 'text_short' && trimmed.length > 120) errors[f.key] = 'Keep this under 120 characters';
     if (f.kind === 'text_long' && trimmed.length > 4000) errors[f.key] = 'Keep this under 4000 characters';

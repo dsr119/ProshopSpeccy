@@ -283,7 +283,9 @@ test('grips add a grip type and grip sizes, and limit the finger holes', async (
   await page.goto(`/customers/${id}/edit`);
   // Without grips each finger has one drilled hole size.
   await expect(page.locator('#field-middle_grip_size')).toHaveCount(0);
-  await chooseGrips(page, 'Grips', 'Oval No Mesh');
+  await chooseGrips(page, 'Grips', 'Vaccu');
+  await page.locator('#field-middle_inserts').selectOption('Oval No Mesh');
+  await page.locator('#field-ring_inserts').selectOption('Lifts');
   await fill(page, 'middle_grip_size', '37/64');
   await fill(page, 'middle_hole', '31/32');
   await expect(page.locator('#field-ring_hole option')).toHaveText(['–', '7/8"', '31/32"', '1 1/32"']);
@@ -294,7 +296,9 @@ test('grips add a grip type and grip sizes, and limit the finger holes', async (
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/customers/${id}$`));
 
-  await expect(slot(page, 'grip_type')).toHaveText('Oval No Mesh');
+  await expect(page.locator('.sheet [data-choice="vaccu"]')).toHaveClass(/is-on/);
+  await expect(slot(page, 'middle_inserts')).toHaveText('Oval No Mesh');
+  await expect(slot(page, 'ring_inserts')).toHaveText('Lifts');
   await expect(page.locator('.fit-notes')).toContainText('Fictional note: likes a snug thumb');
   await expect(slot(page, 'middle_grip_size')).toHaveText('37/64 (0.5)');
   await expect(slot(page, 'middle_hole')).toHaveText('31/32');

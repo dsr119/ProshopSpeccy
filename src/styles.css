@@ -1733,3 +1733,39 @@ a:focus-visible {
   border-color: var(--accent, #2457c5);
   background: var(--accent-soft, #eaf0fc);
 }
+
+/* Ball motion boxes stacked down the empty left side of the drawing; sizes follow the sheet's width. */
+.sheet-footer--side {
+  position: absolute;
+  margin: 0;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: minmax(0, 1fr);
+  border-color: #c6c6c6;
+  border-radius: 4px;
+  z-index: 1;
+}
+.sheet-footer--side .sheet-footer__cell {
+  border-right: 0;
+  padding: 0.6cqw 1cqw;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.sheet-footer--side .sheet-footer__cell:first-child {
+  border-top: 0;
+}
+.sheet-footer--side dt {
+  font-size: 1.7cqw;
+  line-height: 1.15;
+}
+.sheet-footer--side dd {
+  min-height: 0;
+  font-size: 2.9cqw;
+  line-height: 1.2;
+}
+.sheet-footer--side .sheet-footer__input,
+.sheet-footer--side .sheet-footer__button {
+  min-height: 0;
+  font-size: max(16px, 2.6cqw);
+  padding: 0.2cqw 0.6cqw;
+}
