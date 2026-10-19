@@ -36,8 +36,9 @@ test('mixed fractions, pitch directions, blank and zero save and reload in the r
   await expect(slot(page, 'thumb_hole')).toHaveText('1 1/16');
   await expect(slot(page, 'middle_cut_to_cut')).toHaveText('4 3/8');
   await expect(slot(page, 'ring_cut_to_cut')).toHaveText('4 5/16');
-  // Pitches print as fractions in the box on their arrow; finger lateral is signed.
-  await expect(slot(page, 'middle_lateral_pitch')).toHaveText('+1/8');
+  // Pitches print as fractions in the box on their arrow; a finger's lateral arrow shows its direction.
+  await expect(slot(page, 'middle_lateral_pitch')).toHaveText('1/8');
+  await expect(page.locator('.sheet [data-lateral="middle_lateral_pitch"]')).toHaveAttribute('data-dir', 'right');
   await expect(dirSlot(page, 'middle_fr_pitch', 'forward')).toHaveText('1/4');
   await expect(dirSlot(page, 'middle_fr_pitch', 'reverse')).toHaveText('');
   await expect(dirSlot(page, 'thumb_fr_pitch', 'reverse')).toHaveText('3/8');
@@ -284,6 +285,11 @@ test('grips add a grip type and grip sizes, and limit the finger holes', async (
   // Without grips each finger has one drilled hole size.
   await expect(page.locator('#field-middle_grip_size')).toHaveCount(0);
   await chooseGrips(page, 'Grips', 'Vaccu');
+  // Grips are Turbo until another brand is picked; Other asks for the brand in Notes.
+  await expect(page.locator('#field-middle_grip_brand')).toHaveValue('Turbo');
+  await expect(page.locator('#field-ring_grip_brand')).toHaveValue('Turbo');
+  await page.locator('#field-ring_grip_brand').selectOption('Other');
+  await expect(page.getByText('Grip brand is Other')).toBeVisible();
   await page.locator('#field-middle_inserts').selectOption('Oval No Mesh');
   await page.locator('#field-ring_inserts').selectOption('Lifts');
   await fill(page, 'middle_grip_size', '37/64');
@@ -299,6 +305,8 @@ test('grips add a grip type and grip sizes, and limit the finger holes', async (
   await expect(page.locator('.sheet [data-choice="vaccu"]')).toHaveClass(/is-on/);
   await expect(slot(page, 'middle_inserts')).toHaveText('Oval No Mesh');
   await expect(slot(page, 'ring_inserts')).toHaveText('Lifts');
+  await expect(slot(page, 'middle_grip_brand')).toHaveText('Turbo');
+  await expect(slot(page, 'ring_grip_brand')).toHaveText('Other');
   await expect(page.locator('.fit-notes')).toContainText('Fictional note: likes a snug thumb');
   await expect(slot(page, 'middle_grip_size')).toHaveText('37/64 (0.5)');
   await expect(slot(page, 'middle_hole')).toHaveText('31/32');

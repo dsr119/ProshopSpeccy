@@ -149,7 +149,10 @@ describe('measurement schema', () => {
     expect(validateDraft(draftWith({ middle_lateral_pitch: { text: '1/8' } })).middle_lateral_pitch).toMatch(/left or right/);
     expect(validateDraft(draftWith({ thumb_fr_pitch: { text: '1/8', dir: 'none' } })).thumb_fr_pitch).toMatch(/forward or reverse/);
     expect(validateDraft(draftWith({ ring_lateral_pitch: { text: '0', dir: 'none' } }))).toEqual({});
-    expect(validateDraft(draftWith({ ring_lateral_pitch: { text: '', dir: 'left' } })).ring_lateral_pitch).toMatch(/amount/);
+    expect(validateDraft(draftWith({ thumb_fr_pitch: { text: '', dir: 'reverse' } })).thumb_fr_pitch).toMatch(/amount/);
+    // A finger's lateral arrow can be flipped before an amount is picked; nothing is saved for it.
+    expect(validateDraft(draftWith({ ring_lateral_pitch: { text: '', dir: 'left' } }))).toEqual({});
+    expect(draftToSnapshot(draftWith({ ring_lateral_pitch: { text: '', dir: 'left' } })).ring_lateral_pitch).toBeNull();
     const s = draftToSnapshot(draftWith({ middle_lateral_pitch: { text: '1/8', dir: 'right' } }));
     expect(s.middle_lateral_pitch).toEqual({ entered: '1/8', n: 1, d: 8, dir: 'right' });
     expect(formatValue('middle_lateral_pitch', s.middle_lateral_pitch)).toBe('1/8 Right');

@@ -81,7 +81,7 @@ export async function chooseSpanType(page: Page, label: 'Full Span' | 'Cut to Cu
 
 /**
  * Enters a value on the sheet. Pitch boxes are pickers per direction (finger
- * lateral is one signed picker), spans are two wheels on the chosen span type,
+ * lateral is one amount picker, turned by tapping its arrow), spans are two wheels on the chosen span type,
  * sizes are lists, and the rest is typed.
  */
 export async function fillField(page: Page, field: string, value: string, dir?: string) {
@@ -90,8 +90,9 @@ export async function fillField(page: Page, field: string, value: string, dir?: 
     await chooseSpanType(page, SPAN_TYPE_BUTTONS[span[2]]);
     await pickSpan(page, field, value);
   } else if (/^(middle|ring)_lateral_pitch$/.test(field)) {
-    const zero = !dir || dir === 'none' || value === '0';
-    await page.locator(`#field-${field}`).selectOption(zero ? value : `${dir === 'left' ? '-' : '+'}${value}`);
+    await page.locator(`#field-${field}`).selectOption(value);
+    const flip = page.locator(`#flip-${field}`);
+    if (dir && dir !== 'none' && value !== '0' && (await flip.getAttribute('data-dir')) !== dir) await flip.click();
   } else if (field.endsWith('_pitch')) {
     const box = !dir || dir === 'none' ? (field.endsWith('fr_pitch') ? 'forward' : 'left') : dir;
     await page.locator(`#field-${field}-${box}`).selectOption(value);

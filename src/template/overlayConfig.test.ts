@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FIELDS } from '../measurements/schema';
 import { CHOICE_GROUPS, OVERLAY_SLOTS, SHEET_LABELS, TEMPLATE_H, TEMPLATE_W } from './overlayConfig';
-import { fitFont, pitchText } from './SpecSheet';
+import { fitFont } from './SpecSheet';
 
 // The span type is the lettered picker and grips are choice boxes; the full span and cut to outer values share
 // the span boxes with cut to cut; ball motion and the author are in the footer under the drawing; the rest are
@@ -72,10 +72,4 @@ describe('overlay configuration', () => {
     expect(long.size * 0.6 * 'Lat 1234567.123456 →Right'.length).toBeLessThanOrEqual((114 - 8) * long.lines + 0.001);
   });
 
-  it('prints pitches as fractions, signing finger lateral pitch', () => {
-    expect(pitchText('3/8', 'forward', false)).toBe('3/8');
-    expect(pitchText('1/4', 'left', true)).toBe('-1/4');
-    expect(pitchText('1 1/32', 'right', true)).toBe('+1 1/32');
-    expect(pitchText('0', 'none', true)).toBe('0');
-  });
 });
