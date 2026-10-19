@@ -333,7 +333,7 @@ export async function finishAndNext(
 }
 
 /** Passes a sheet with a reason (it goes to the passed pile) and takes the next one for the same person. */
-export async function passAndNext(item: IntakeItem, reason: PassReason, note: string, name: string): Promise<IntakeItem | null> {
+export async function passAndNext(item: IntakeItem, reason: PassReason | null, note: string, name: string): Promise<IntakeItem | null> {
   handedOut.delete(item.id);
   const res = await supabase.rpc('pass_intake', { p_id: item.id, p_reason: reason, p_note: note.trim() || null, p_name: name });
   if (res.error) throw toAppError(res.error);

@@ -42,6 +42,8 @@ test('paper sheets go into the queue, get typed in, and land in the app with the
   }
 
   await expect(page.locator('.intake-photo img')).toBeVisible();
+  // A sheet with a back says so.
+  await expect(page.getByText('This paper has a back.')).toBeVisible();
   const frontSrc = await page.locator('.intake-photo img').getAttribute('src');
   await page.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(page.locator('.intake-photo img')).not.toHaveAttribute('src', frontSrc!);
@@ -61,6 +63,7 @@ test('paper sheets go into the queue, get typed in, and land in the app with the
   // The next sheet opens straight away.
   await expect(page).not.toHaveURL(first);
   await expect(page.getByText('1. Find the bowler.')).toBeVisible();
+  await expect(page.getByText('This paper has a back.')).toHaveCount(0);
   await passSheet(page, 'Incomplete specs', 'Ring span missing');
   await expect(page.getByText('That sheet is in the passed pile.')).toBeVisible();
   const passed = page.locator('.intake-list', { hasText: 'Passed sheets' }).locator('li').first();
@@ -84,4 +87,19 @@ test('paper sheets go into the queue, get typed in, and land in the app with the
   const row = page.locator('.intake-people__table tbody tr', { hasText: 'Fictional Fran' });
   await expect(row.locator('td').nth(0)).not.toHaveText('0');
   await expect(row.locator('td').nth(3)).not.toHaveText('0');
+});
+
+test('signed in as admin, a sheet can be passed without a reason', async ({ page }) => {
+  await loginAsStaff(page);
+  await page.goto('/intake/');
+  await intakeSignIn(page, 'Admin');
+  await page.getByRole('link', { name: 'Take photos of sheets' }).click();
+  await page.getByTestId('library-input').setInputFiles([{ name: 'admin-pass.png', ...SHEET }]);
+  await expect(page.getByRole('status')).toHaveText('1 sheet added to the queue');
+  await page.getByRole('link', { name: '← Queue' }).click();
+  await page.getByRole('button', { name: 'Type in the next sheet' }).click();
+  await page.getByRole('button', { name: 'Pass', exact: true }).click();
+  await expect(page.getByRole('dialog').getByText('(optional)').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Pass and get the next one' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 });
