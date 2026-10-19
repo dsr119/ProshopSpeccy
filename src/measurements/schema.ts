@@ -290,7 +290,7 @@ export function isPitchKind(kind: FieldKind): boolean {
 
 /** Pitches run from 0 to 2 inches and spans from 2 to 6, both in steps of 1/16 (mirrored in private.normalize_fit_snapshot). */
 export const PITCH_MAX = 2;
-export const PITCH_STEP_DENOMINATOR = 16;
+export const PITCH_STEP_DENOMINATOR = 32;
 export const SPAN_MIN = 2;
 export const SPAN_MAX = 6;
 
@@ -308,7 +308,7 @@ function sixteenths(i: number): string {
 }
 
 /** Pitch amounts offered in the editor, as entered text: 0, 1/16, 1/8, … 1 15/16, 2. */
-export const PITCH_AMOUNTS: string[] = Array.from({ length: PITCH_MAX * PITCH_STEP_DENOMINATOR + 1 }, (_, i) => sixteenths(i));
+export const PITCH_AMOUNTS: string[] = Array.from({ length: PITCH_MAX * PITCH_STEP_DENOMINATOR + 1 }, (_, i) => thirtySeconds(i));
 
 /** Decimal shown beside a fraction in the pickers, to three places with halves rounded to even (1/16 is 0.062). */
 export function decimalHint(text: string): string {

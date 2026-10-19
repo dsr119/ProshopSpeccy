@@ -41,7 +41,7 @@ test('a finger lateral pitch points to its own side until its arrow is tapped, a
   // The box only holds the amount: one list, no left or right in it.
   const middle = page.locator('#field-middle_lateral_pitch option');
   await expect(middle.nth(1)).toHaveText('0"');
-  await expect(middle.nth(2)).toHaveText(/^1\/16"/);
+  await expect(middle.nth(2)).toHaveText(/^1\/32"/);
   await expect(page.locator('#field-middle_lateral_pitch optgroup')).toHaveCount(0);
   await expect(page.locator('.sheet [data-lateral="middle_lateral_pitch"]')).toHaveAttribute('data-dir', 'left');
   await expect(page.locator('.sheet [data-lateral="ring_lateral_pitch"]')).toHaveAttribute('data-dir', 'right');
