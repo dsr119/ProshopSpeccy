@@ -120,7 +120,7 @@ test('editing creates a revision with the right author; cancel leaves saved data
   await expect(page.locator('.history__item').first().locator('.changes')).toContainText('13/16');
 
   await page.locator('.history__item').nth(1).getByRole('link', { name: 'View full sheet' }).click();
-  await expect(page.getByText('Older version')).toBeVisible();
+  await expect(page.getByText('Not current')).toBeVisible();
   await expect(slot(page, 'middle_hole')).toHaveText('3/4');
   await page.getByRole('button', { name: 'Restore this revision…' }).click();
   await expect(page.getByRole('dialog')).toContainText('Revision #1 from');

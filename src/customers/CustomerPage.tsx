@@ -9,7 +9,7 @@ import { Dialog, ErrorBanner, Notice, Spinner } from '../components/ui';
 import { HAND_LABELS, THUMB_MODE_LABELS, type Hand, type Snapshot, type ThumbMode } from '../measurements/schema';
 import { SheetTable, SpecSheet, displayFromSnapshot } from '../template/SpecSheet';
 import { getCurrentFit, isConfirmed, listUncheckedSheets, setFitConfirmed, type Fit } from '../fits/api';
-import { listPhotos } from '../photos/api';
+import { currentSheetPhoto, listPhotos } from '../photos/api';
 import { PhotosPanel } from '../photos/PhotosPage';
 import { listBalls } from '../balls/api';
 import { BallsList } from '../balls/BallsSection';
@@ -138,6 +138,7 @@ export function CustomerPage() {
   const snapshot = revision?.snapshot ?? null;
   const photoList = photos.data ?? [];
   const show = (next: 'sheet' | 'photos') => setParams(next === 'photos' ? { view: 'photos' } : {}, { replace: true });
+  const paper = currentSheetPhoto(photoList, c.current_photo_id);
 
   return (
     <main className="page">
@@ -170,6 +171,9 @@ export function CustomerPage() {
       )}
 
       {params.get('nochange') && <Notice>No changes were made, so no new revision was saved.</Notice>}
+      {params.get('imported') && view === 'sheet' && (
+        <Notice tone="success">Specs imported. This version and that paper sheet are now the current spec sheet.</Notice>
+      )}
 
       <div className="view-tabs no-print" role="group" aria-label="Show">
         <button type="button" aria-pressed={view === 'sheet'} onClick={() => show('sheet')}>
@@ -194,6 +198,12 @@ export function CustomerPage() {
               onChange={photos.setData}
               startUpload={params.get('upload') === '1'}
               onBallsSaved={balls.reload}
+              fit={currentFit}
+              initialPhotoId={params.get('photo')}
+              onCurrentChanged={async () => {
+                customer.setData(await getCustomer(c.id).catch(() => c));
+                fit.reload();
+              }}
             />
           )}
         </>
@@ -217,6 +227,13 @@ export function CustomerPage() {
             <p className="muted saved-by">
               Last saved {formatDateTime(revision.created_at)} by {revision.author_name ?? 'unknown'} · revision #
               {revision.revision_number}
+              {paper && (
+                <>
+                  {' '}
+                  · current paper sheet:{' '}
+                  <Link to={`/customers/${c.id}?view=photos&photo=${paper.id}`}>{paper.caption || formatDate(paper.created_at)}</Link>
+                </>
+              )}
             </p>
           )}
 
@@ -224,7 +241,7 @@ export function CustomerPage() {
             <Notice key={r.id} tone="warn">
               <span>
                 Another paper sheet for this bowler was read by AI and is not checked yet (revision #{r.revision_number}).
-                Compare it with this sheet and the paper photo, and restore it if it is right.
+                Compare it with this sheet and the paper photo, and make it current if it is right.
               </span>{' '}
               <Link to={`/customers/${c.id}/history/${r.id}`}>Compare it</Link>
             </Notice>
