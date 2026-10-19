@@ -10,10 +10,12 @@ import { CustomerFields } from '../customers/NewCustomerPage';
 import {
   EMPTY_CUSTOMER,
   createCustomer,
+  findPossibleDuplicates,
   searchCustomers,
   validateCustomer,
   type CustomerInput,
   type CustomerSearchRow,
+  type DuplicateRow,
 } from '../customers/api';
 import { finishAndNext, getItem, intakePhotoUrl, preloadUpNext, releaseItem, removeItem, type CopiedPhotos, type IntakeItem } from './api';
 import { appCustomerUrl } from './IntakeHome';
@@ -167,7 +169,7 @@ export function SheetPage() {
             />
           </>
         ) : (
-          <FindBowler key={it.id} onChoose={chooseBowler} suggested={it} />
+          <ChooseBowler key={it.id} onChoose={chooseBowler} suggested={it} />
         )}
       </div>
 
@@ -245,7 +247,134 @@ function SheetPhoto({ item }: { item: IntakeItem }) {
   );
 }
 
-/** Step 1: find the bowler on the sheet, or add them. */
+/** Step 1: check the name and phone read off the photo when there is one, else search for the bowler. */
+function ChooseBowler({ onChoose, suggested }: { onChoose: (customerId: string) => void; suggested: IntakeItem }) {
+  const [searching, setSearching] = useState(!suggested.read_name && !suggested.read_phone);
+  return searching ? (
+    <FindBowler onChoose={onChoose} suggested={suggested} />
+  ) : (
+    <CheckBowler onChoose={onChoose} suggested={suggested} onSearch={() => setSearching(true)} />
+  );
+}
+
+/** The name and phone read off the photo, to fix if needed, with any bowler already in the app that matches. */
+function CheckBowler({
+  onChoose,
+  suggested,
+  onSearch,
+}: {
+  onChoose: (customerId: string) => void;
+  suggested: IntakeItem;
+  onSearch: () => void;
+}) {
+  const { shop_id } = useMembership();
+  const [value, setValue] = useState<CustomerInput>({
+    ...EMPTY_CUSTOMER,
+    name: suggested.read_name ?? '',
+    phone: suggested.read_phone ?? '',
+  });
+  const [matches, setMatches] = useState<DuplicateRow[] | null>(null);
+  const [errors, setErrors] = useState<Partial<Record<keyof CustomerInput, string>>>({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<AppError | null>(null);
+
+  useEffect(() => {
+    const name = value.name.trim();
+    const phone = value.phone.trim();
+    if (name.length < 2 && phone.replace(/\D/g, '').length < 7) {
+      setMatches(null);
+      return;
+    }
+    let live = true;
+    const t = setTimeout(() => {
+      findPossibleDuplicates(name, phone)
+        .then((r) => live && setMatches(r))
+        .catch(() => undefined);
+    }, 250);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [value.name, value.phone]);
+
+  async function create(e: FormEvent) {
+    e.preventDefault();
+    const errs = validateCustomer(value);
+    setErrors(errs);
+    if (Object.keys(errs).length) return;
+    setSaving(true);
+    setError(null);
+    try {
+      onChoose((await createCustomer(shop_id, { ...value, name: value.name.trim(), phone: value.phone.trim() })).id);
+    } catch (err) {
+      setError(toAppError(err));
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="intake-bowler">
+      <p className="intake-step">
+        <strong>1. Check the name and phone.</strong> These were read off the photo. Fix anything that doesn't match the sheet.
+      </p>
+      {suggested.read_unsure && <Notice tone="warn">Some of this was hard to read. Look closely at the sheet.</Notice>}
+      <ErrorBanner error={error} />
+      <form className="form" onSubmit={create} noValidate>
+        <label>
+          Name
+          <input
+            value={value.name}
+            autoFocus
+            maxLength={200}
+            onChange={(e) => setValue({ ...value, name: e.target.value })}
+            aria-invalid={!!errors.name}
+          />
+          {errors.name && <span className="field-error">{errors.name}</span>}
+        </label>
+        <label>
+          Phone <span className="muted">{suggested.read_phone ? '' : '(none read off the sheet)'}</span>
+          <input
+            type="tel"
+            value={value.phone}
+            maxLength={40}
+            onChange={(e) => setValue({ ...value, phone: e.target.value })}
+            aria-invalid={!!errors.phone}
+          />
+          {errors.phone && <span className="field-error">{errors.phone}</span>}
+        </label>
+        {matches && matches.length > 0 && (
+          <>
+            <p className="muted small">Already in the app? Pick them so the sheet goes on their page.</p>
+            <ul className="intake-matches">
+              {matches.map((r) => (
+                <li key={r.id}>
+                  <span>
+                    <strong>{r.name}</strong>
+                    {r.phone && <span className="muted"> · {r.phone}</span>}
+                    <span className="muted small"> · {r.reason}</span>
+                  </span>
+                  <button type="button" className="btn btn--small" onClick={() => onChoose(r.id)}>
+                    This bowler
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        <div className="form__actions">
+          <button className="btn btn--primary" disabled={saving}>
+            {saving ? 'Saving…' : matches && matches.length > 0 ? "It's someone new, add them" : 'Looks right, add bowler'}
+          </button>
+          <button type="button" className="btn" onClick={onSearch}>
+            Search instead
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
+/** Find the bowler on the sheet, or add them. */
 function FindBowler({ onChoose, suggested }: { onChoose: (customerId: string) => void; suggested: IntakeItem }) {
   const { shop_id } = useMembership();
   const readName = suggested.read_name ?? '';
