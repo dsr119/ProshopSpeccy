@@ -3,12 +3,13 @@ import { FIELDS } from '../measurements/schema';
 import { CHOICE_GROUPS, OVERLAY_SLOTS, SHEET_LABELS, TEMPLATE_H, TEMPLATE_W } from './overlayConfig';
 import { fitFont, pitchText } from './SpecSheet';
 
-// The span type is the lettered picker and grips / no grips are choice boxes; the full span and cut to outer values share
+// The span type is the lettered picker and grips are choice boxes; the full span and cut to outer values share
 // the span boxes with cut to cut; ball motion and the author are in the footer under the drawing; the rest are
 // kept in the record and the table but not drawn on the sheet.
 const OFF_SHEET = new Set([
   'span_type',
   'finger_grips',
+  'grip_type',
   'middle_full_span',
   'ring_full_span',
   'middle_cut_to_outer',
@@ -31,7 +32,7 @@ describe('overlay configuration', () => {
     const keys = [...new Set(OVERLAY_SLOTS.map((s) => s.field))].sort();
     expect(keys).toEqual([...sheetFields].sort());
     const ids = OVERLAY_SLOTS.map((s) => `${s.field}:${s.dir ?? ''}:${s.when ?? ''}`);
-    expect(CHOICE_GROUPS.map((g) => g.field)).toEqual(['finger_grips']);
+    expect(CHOICE_GROUPS.map((g) => g.field)).toEqual(['finger_grips', 'grip_type']);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
