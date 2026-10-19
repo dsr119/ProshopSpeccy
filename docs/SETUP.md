@@ -79,6 +79,23 @@ On the static host, set the same two `VITE_…` variables and route all paths to
 Source: GitHub Actions** (not "Deploy from a branch", which serves the unbuilt source and shows a blank page).
 For any other subfolder host, build with `VITE_BASE=/subfolder/ npm run build`.
 
+## Reading names and phones off intake photos (optional)
+
+The `read-sheets` Edge Function sends each intake queue photo to Claude (Sonnet by
+default, about $0.009 a sheet) and saves the bowler's name and phone on the sheet
+as `read_name` / `read_phone`. The intake page shows them as a suggestion and
+pre-fills the bowler search and the new-bowler form; nobody's typed data is changed.
+
+1. Create an API key at console.anthropic.com (billed to your card there, separate
+   from any Claude plan) and add it as the Edge Function secret `ANTHROPIC_API_KEY`.
+2. Deploy: `npx supabase functions deploy read-sheets` (and `db push` for the
+   `sheet_reading` migration).
+3. `GET` the function URL to check the key is set and how many sheets are unread.
+4. `POST` `{"limit": 25}` with the publishable key as `apikey` and `Bearer` to read
+   the next 25 unread sheets; repeat until `unread` is 0. `{"ids": [...]}` re-reads
+   chosen sheets (each sheet at most 3 times). `"model"` picks `claude-sonnet-5-5`
+   (default, or `ANTHROPIC_MODEL`) or `claude-haiku-5-5`.
+
 ## 6. Backups (before relying on this as the only record)
 
 - Database: Supabase Pro plans include daily backups (and optional point-in-time recovery). On the Free plan there

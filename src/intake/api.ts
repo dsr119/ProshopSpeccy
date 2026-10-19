@@ -29,6 +29,10 @@ export interface IntakeItem {
   done_at: string | null;
   removed_at?: string | null;
   removed_by?: string | null;
+  /** Name and phone read off the photo by AI, as a suggestion to check. */
+  read_name?: string | null;
+  read_phone?: string | null;
+  read_unsure?: boolean | null;
 }
 
 export type IntakeCounts = Record<IntakeStatus, number>;
