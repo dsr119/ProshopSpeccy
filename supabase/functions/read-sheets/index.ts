@@ -89,7 +89,7 @@ const PROMPT = `This is a photo of a paper bowling ball spec (drill) sheet from 
 Return:
 - name: the bowler's name from the Name line, keeping "Jr", "Sr" and the like.
 - phone: the bowler's phone number, digits with dashes like 570-555-1234. Usually on the Phone or Cell line, but forms without a phone line often have it written elsewhere, such as the E-mail line. If digits are missing, write only what is there.
-- fields: one entry per key below, each {"text", "dir"}. text is the value, "" when the sheet doesn't give it. dir is only for pitches ("" otherwise).
+- fields: one entry {"key", "text", "dir"} for each key below that the sheet gives a value for (leave out the rest). dir is only for pitches ("" otherwise).
 - unsure: the keys (and "name"/"phone") whose value was hard to read, ambiguous, or a guess.
 
 Keys:
@@ -104,21 +104,15 @@ How to read the forms:
 - P.A.P. is usually written as an amount over (horizontal) and an amount up or down with an arrow.
 Do not guess values that aren't on the sheet.`;
 
+// A list rather than one property per field keeps the output grammar small.
 const FIELD_SCHEMA = {
-  type: 'object',
-  properties: Object.fromEntries(
-    Object.keys(FIELDS).map((k) => [
-      k,
-      {
-        type: 'object',
-        properties: { text: { type: 'string' }, dir: { type: 'string' } },
-        required: ['text', 'dir'],
-        additionalProperties: false,
-      },
-    ]),
-  ),
-  required: Object.keys(FIELDS),
-  additionalProperties: false,
+  type: 'array',
+  items: {
+    type: 'object',
+    properties: { key: { type: 'string', enum: Object.keys(FIELDS) }, text: { type: 'string' }, dir: { type: 'string' } },
+    required: ['key', 'text', 'dir'],
+    additionalProperties: false,
+  },
 };
 
 const SCHEMA = {
@@ -136,7 +130,7 @@ const SCHEMA = {
 type Reading = {
   name: string;
   phone: string;
-  fields: Record<string, { text: string; dir: string }>;
+  fields: Array<{ key: string; text: string; dir: string }>;
   unsure: string[];
 };
 
@@ -208,6 +202,7 @@ Deno.serve(async (req) => {
 
   async function readOne(item: { id: string; object_path: string; mime_type: string; read_count: number }) {
     let saved: Record<string, unknown>;
+    // Only a read the model answered counts toward MAX_READS.
     let usage: unknown = null;
     try {
       const file = await r2.fetch(base + encodeKey(item.object_path));
@@ -234,9 +229,9 @@ Deno.serve(async (req) => {
       if (!text || text.type !== 'text') throw new Error(`No answer (${res.stop_reason})`);
       const out = JSON.parse(text.text) as Reading;
       const fields = Object.fromEntries(
-        Object.keys(FIELDS)
-          .map((k) => [k, { text: (out.fields[k]?.text ?? '').trim().slice(0, 4000), dir: (out.fields[k]?.dir ?? '').trim().slice(0, 20) }])
-          .filter(([, v]) => (v as { text: string }).text !== ''),
+        out.fields
+          .filter((f) => f.key in FIELDS && f.text.trim() !== '')
+          .map((f) => [f.key, { text: f.text.trim().slice(0, 4000), dir: f.dir.trim().slice(0, 20) }]),
       );
       const unsure = out.unsure.filter((k) => typeof k === 'string').slice(0, 60);
       saved = {
@@ -251,7 +246,7 @@ Deno.serve(async (req) => {
     }
     const upd = await db
       .from('intake_items')
-      .update({ ...saved, read_at: new Date().toISOString(), read_by: model, read_count: item.read_count + 1 })
+      .update({ ...saved, read_at: new Date().toISOString(), read_by: model, read_count: item.read_count + (usage ? 1 : 0) })
       .eq('id', item.id)
       .eq('read_count', item.read_count);
     results.push({ id: item.id, ...saved, usage, saveError: upd.error?.message });
