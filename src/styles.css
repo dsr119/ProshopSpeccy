@@ -517,7 +517,7 @@ a:focus-visible {
   margin-top: 0.8rem;
 }
 .customer-sheet {
-  max-width: 760px;
+  max-width: 900px;
 }
 .edit-heading {
   margin: 0.2rem 0;
@@ -639,10 +639,9 @@ a:focus-visible {
   padding: 0.3rem 0;
 }
 
-/* Spec sheet */
+/* Spec sheet: as wide as the space it's in (up to the customer page's 900px), so tablets get a big sheet. */
 .sheet-figure {
   margin: 0;
-  max-width: 560px;
 }
 .sheet {
   position: relative;
