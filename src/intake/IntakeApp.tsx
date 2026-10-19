@@ -3,13 +3,13 @@
 // one, find or add the bowler and type the sheet into the digital spec sheet.
 // Finished sheets are in the app like any other; the app has no way into here.
 
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Link, Outlet, RouterProvider, createHashRouter } from 'react-router-dom';
 import { AuthProvider, useAuth } from '../lib/auth';
 import { isConfigured } from '../lib/supabase';
 import { ErrorBanner, Notice, Spinner } from '../components/ui';
 import { useAsync } from '../lib/useAsync';
-import { ADMIN_NAME, listIntakeNames, readWorkerName, saveWorkerName } from './api';
+import { ADMIN_NAME, isAdminName, listIntakeNames, readWorkerName, saveWorkerName } from './api';
 import { IntakeHome } from './IntakeHome';
 import { AddPhotosPage } from './AddPhotosPage';
 import { SheetPage } from './SheetPage';
@@ -28,25 +28,42 @@ export function useWorkerName(): [string, (name: string) => void] {
 
 function NamePrompt({ onDone }: { onDone: (name: string) => void }) {
   const names = useAsync(listIntakeNames, []);
+  // The question mark opens an unlabelled box; typing the admin name there signs in as admin.
+  const [secret, setSecret] = useState<string | null>(null);
+  function submitSecret(e: FormEvent) {
+    e.preventDefault();
+    if (secret && isAdminName(secret)) onDone(ADMIN_NAME);
+    else setSecret('');
+  }
   return (
     <main className="page page--narrow">
       <h1>Spec sheet intake</h1>
-      <h2 className="intake-names__title">Who are you?</h2>
+      <h2 className="intake-names__title">
+        Who are you
+        <button type="button" className="intake-names__q" aria-label="More" onClick={() => setSecret(secret === null ? '' : null)}>
+          ?
+        </button>
+      </h2>
+      {secret !== null && (
+        <form onSubmit={submitSecret}>
+          <input className="intake-names__secret" aria-label="Code" value={secret} autoFocus autoComplete="off" onChange={(e) => setSecret(e.target.value)} />
+        </form>
+      )}
       <ErrorBanner error={names.error} onRetry={names.reload} />
       {names.loading ? (
         <Spinner />
       ) : (
         <ul className="intake-names" aria-label="Your name">
-          {[...(names.data ?? []), ADMIN_NAME].map((n) => (
+          {(names.data ?? []).map((n) => (
             <li key={n}>
-              <button type="button" className={`btn btn--big${n === ADMIN_NAME ? '' : ' btn--primary'}`} onClick={() => onDone(n)}>
+              <button type="button" className="btn btn--big btn--primary" onClick={() => onDone(n)}>
                 {n}
               </button>
             </li>
           ))}
         </ul>
       )}
-      <p className="muted small">Your name is shown next to the sheets you add and type in. This device remembers it. Not on the list? Ask whoever signs in as Admin to add you.</p>
+      <p className="muted small">Your name is shown next to the sheets you add and type in. This device remembers it.</p>
     </main>
   );
 }

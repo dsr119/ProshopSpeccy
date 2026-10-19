@@ -1801,3 +1801,15 @@ a:focus-visible {
   gap: 0.25rem;
   flex: 1 1 14rem;
 }
+.intake-names__q {
+  border: 0;
+  background: none;
+  padding: 0 0.15rem;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.intake-names__secret {
+  width: 12rem;
+  margin-top: 0.4rem;
+}
