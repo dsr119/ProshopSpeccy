@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toAppError, type AppError } from '../lib/errors';
-import { formatDateTime } from '../lib/format';
+import { formatDateTime, formatSheetDate } from '../lib/format';
+import { listPhotos, sheetDateOf } from '../photos/api';
 import { useAsync } from '../lib/useAsync';
 import { Dialog, ErrorBanner, Spinner } from '../components/ui';
 import { FIELD_BY_KEY, diffSnapshots, type Snapshot } from '../measurements/schema';
@@ -108,8 +109,8 @@ export function HistoryPage() {
   const customer = useAsync(() => getCustomer(customerId), [customerId]);
   const data = useAsync(async () => {
     const current = await getCurrentFit(customerId);
-    const revisions = current.fit ? await listRevisions(current.fit.id) : [];
-    return { current, revisions };
+    const [revisions, photos] = await Promise.all([current.fit ? listRevisions(current.fit.id) : [], listPhotos(customerId)]);
+    return { current, revisions, photos };
   }, [customerId]);
   const [restoring, setRestoring] = useState<FitRevision | null>(null);
 
@@ -143,6 +144,9 @@ export function HistoryPage() {
                     {formatDateTime(r.created_at)} · {r.author_name ?? 'unknown'}
                   </span>
                 </div>
+                {sheetDateOf(data.data?.photos ?? [], r.id) && (
+                  <p>Paper sheet dated {formatSheetDate(sheetDateOf(data.data?.photos ?? [], r.id))}</p>
+                )}
                 {r.change_note && <p className="history__note">“{r.change_note}”</p>}
                 {restoredFrom && <p className="muted small">Restored from revision #{restoredFrom.revision_number}.</p>}
                 <details>
@@ -188,6 +192,7 @@ export function RevisionPage() {
   const navigate = useNavigate();
   const rev = useAsync(() => getRevision(revisionId), [revisionId]);
   const current = useAsync(() => getCurrentFit(customerId), [customerId]);
+  const photos = useAsync(() => listPhotos(customerId), [customerId]);
   const [restoring, setRestoring] = useState(false);
   const r = rev.data;
   const isCurrent = current.data?.fit?.current_revision_id === revisionId;
@@ -215,6 +220,7 @@ export function RevisionPage() {
             Saved {formatDateTime(r.created_at)} by {r.author_name ?? 'unknown'}
             {r.change_note ? ` · “${r.change_note}”` : ''}
           </p>
+          {sheetDateOf(photos.data ?? [], r.id) && <p>Paper sheet dated {formatSheetDate(sheetDateOf(photos.data ?? [], r.id))}</p>}
           <FitIdentity snapshot={r.snapshot} />
           {!isCurrent && current.data?.revision && (
             <details className="text-view" open>

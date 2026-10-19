@@ -425,3 +425,6 @@ verify_jwt = false
 
 [functions.read-specs]
 verify_jwt = false
+
+[functions.read-dates]
+verify_jwt = false
