@@ -14,6 +14,7 @@ import {
   THUMB_INSERT_TYPES,
   THUMB_MODE_LABELS,
   snapshotToDraft,
+  GRIP_BRAND_FIELDS,
   validateDraft,
   type Draft,
   type DraftErrors,
@@ -345,6 +346,11 @@ export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
         <div className="editor__form">
           <fieldset className="fieldset">
             <legend>{GROUP_LABELS.notes}</legend>
+            {draft.finger_grips.text === 'grips' && GRIP_BRAND_FIELDS.some((k) => draft[k].text === 'Other') && (
+              <p className="muted small" role="note">
+                Grip brand is Other: write which brand it is here.
+              </p>
+            )}
             {FIELDS.filter((f) => f.group === 'notes').map((f) => (
               <FieldControl
                 key={f.key}

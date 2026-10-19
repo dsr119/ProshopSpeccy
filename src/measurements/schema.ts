@@ -45,6 +45,8 @@ export const FIELD_KEYS = [
   'fit_label',
   'finger_grips',
   'grip_type',
+  'middle_grip_brand',
+  'ring_grip_brand',
   'middle_grip_size',
   'middle_hole',
   'middle_oval',
@@ -96,6 +98,8 @@ export const FIELDS: FieldDef[] = [
 
   { key: 'finger_grips', kind: 'enum_grips', label: 'Finger grips', shortLabel: 'Grips', group: 'fingers' },
   { key: 'grip_type', kind: 'enum_grip_type', label: 'Grip type', shortLabel: 'Grip type', group: 'fingers' },
+  { key: 'middle_grip_brand', kind: 'text_short', label: 'Middle finger grip brand', shortLabel: 'Grip brand', group: 'fingers' },
+  { key: 'ring_grip_brand', kind: 'text_short', label: 'Ring finger grip brand', shortLabel: 'Grip brand', group: 'fingers' },
 
   { key: 'middle_grip_size', kind: 'length', label: 'Middle finger grip size', shortLabel: 'Grip size', group: 'middle', unit: 'in' },
   { key: 'middle_hole', kind: 'length', label: 'Middle finger hole size', shortLabel: 'Hole', group: 'middle', unit: 'in' },
@@ -196,6 +200,10 @@ export const GRIPS_LABELS: Record<Grips, string> = { no_grips: 'No Grips', grips
 export const GRIP_TYPE_LABELS: Record<GripType, string> = { std: 'STD', vaccu: 'Vaccu' };
 /** What goes in a finger's Inserts line above the hole. */
 export const FINGER_INSERT_TYPES = ['Oval Mesh', 'Oval No Mesh', 'Lifts'] as const;
+/** Finger grip brands; Turbo unless another is picked. With Other, the brand is written in the notes. */
+export const GRIP_BRANDS = ['Turbo', 'Vise', 'Other'] as const;
+export const DEFAULT_GRIP_BRAND = 'Turbo';
+export const GRIP_BRAND_FIELDS = ['middle_grip_brand', 'ring_grip_brand'] as const;
 
 /** n/64 inch as reduced text, e.g. 72 → "1 1/8". */
 function sixtyFourths(i: number): string {
@@ -403,7 +411,8 @@ export function validateDraft(draft: Draft): DraftErrors {
     if (f.kind === 'text_long' && trimmed.length > 4000) errors[f.key] = 'Keep this under 4000 characters';
     if (!isNumericKind(f.kind)) continue;
     if (trimmed === '') {
-      if (isPitchKind(f.kind) && dir && dir !== 'none') errors[f.key] = `Enter an amount for the ${dir} direction`;
+      // A finger's lateral arrow can be flipped before an amount is picked; it is only saved with an amount.
+      if (isPitchKind(f.kind) && f.kind !== 'pitch_lateral' && dir && dir !== 'none') errors[f.key] = `Enter an amount for the ${dir} direction`;
       continue;
     }
     if (trimmed.length > 40) {
@@ -446,7 +455,7 @@ export function validateDraft(draft: Draft): DraftErrors {
     }
   }
   if (draft.finger_grips.text !== 'grips') {
-    for (const key of ['grip_type', 'middle_grip_size', 'ring_grip_size'] as const) {
+    for (const key of ['grip_type', ...GRIP_BRAND_FIELDS, 'middle_grip_size', 'ring_grip_size'] as const) {
       if (draft[key].text.trim() !== '' && !errors[key]) errors[key] = 'Only used with grips';
     }
   }

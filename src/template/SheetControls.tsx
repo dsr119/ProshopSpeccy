@@ -17,6 +17,9 @@ import {
   PAP_MAX,
   THUMB_INSERT_TYPES,
   FINGER_INSERT_TYPES,
+  GRIP_BRANDS,
+  GRIP_BRAND_FIELDS,
+  DEFAULT_GRIP_BRAND,
   joinInches,
   splitInches,
   decimalHint,
@@ -29,7 +32,7 @@ import {
   type FieldKey,
   type SpanType,
 } from '../measurements/schema';
-import { SPAN_PICKER, pctX, pctY, type ChoiceGroup, type OverlaySlot } from './overlayConfig';
+import { LATERAL_ARROWS, SPAN_PICKER, pctX, pctY, type ChoiceGroup, type OverlaySlot } from './overlayConfig';
 
 export interface SheetEditor {
   draft: Draft;
@@ -49,6 +52,36 @@ export const controlId = (slot: OverlaySlot) => `field-${slot.field}${slot.dir ?
 function isZero(text: string) {
   const p = parseMeasurement(text);
   return p.ok && p.value.n === 0;
+}
+
+/** The way a finger's lateral arrow points: as saved, else toward the finger's own side. */
+export const lateralDir = (dir: string | undefined, lean: 'left' | 'right'): 'left' | 'right' => (dir === 'left' || dir === 'right' ? dir : lean);
+
+/** Taps on the arrow beside a finger's lateral pitch box flip which way it points. */
+export function LateralFlipButtons({ editor, sheetH }: { editor: SheetEditor; sheetH?: number }) {
+  return (
+    <>
+      {LATERAL_ARROWS.map((a) => {
+        const dir = lateralDir(editor.draft[a.field].dir, a.lean);
+        // From the box edge to a little past the arrowhead, so a fingertip finds it.
+        const x = a.outX < a.boxX ? a.outX - 10 : a.boxX;
+        return (
+          <button
+            key={a.field}
+            type="button"
+            className="sheet__pick sheet__pick--box sheet__flip"
+            id={`flip-${a.field}`}
+            data-control={a.field}
+            data-dir={dir}
+            aria-label={`${FIELD_BY_KEY[a.field].label}: ${dir}. Tap to flip`}
+            style={{ left: pctX(x), top: pctY(a.y - 16, sheetH), width: pctX(Math.abs(a.boxX - a.outX) + 10), height: pctY(32, sheetH) }}
+            onClick={() => editor.setField(a.field, { dir: dir === 'left' ? 'right' : 'left' })}
+            onFocus={() => editor.onFocusField?.(a.field)}
+          />
+        );
+      })}
+    </>
+  );
 }
 
 /** Keeps a saved value that isn't in a list selectable, so it is never dropped silently. */
@@ -87,43 +120,27 @@ export function SlotControl({ slot, editor, label }: { slot: OverlaySlot; editor
     );
   }
 
-  if (slot.style === 'pitch' && slot.signed) {
-    // One box per finger: minus is left, plus is right. A finger nearly always pitches toward its own side,
-    // so that way is listed first as plain amounts and the other way comes after.
-    const steps = PITCH_AMOUNTS.slice(1);
-    const lean = slot.lean === 'right' ? '+' : '-';
-    const other = lean === '-' ? '+' : '-';
-    const options = ['0', ...steps.map((a) => `${lean}${a}`), ...steps.map((a) => `${other}${a}`)];
+  if (slot.style === 'pitch' && slot.lean) {
+    // One box per finger holds the amount; the arrow beside it shows the direction and flips it.
     const t = v.text.trim();
-    const current = !t ? '' : isZero(t) || !v.dir || v.dir === 'none' ? t : `${v.dir === 'left' ? '-' : '+'}${t}`;
     return (
       <select
         {...common}
         className="slot__picker"
-        value={current}
+        value={t}
         onChange={(e) => {
-          const s = e.target.value;
-          if (!s) setField(slot.field, { text: '', dir: '' });
-          else if (s.startsWith('-')) setField(slot.field, { text: s.slice(1), dir: 'left' });
-          else if (s.startsWith('+')) setField(slot.field, { text: s.slice(1), dir: 'right' });
-          else setField(slot.field, { text: s, dir: 'none' });
+          const a = e.target.value;
+          if (!a) setField(slot.field, { text: '', dir: '' });
+          else if (isZero(a)) setField(slot.field, { text: a, dir: 'none' });
+          else setField(slot.field, { text: a, dir: lateralDir(v.dir, slot.lean!) });
         }}
       >
         <option value="">–</option>
-        {[...withLegacy(options, current).filter((a) => !options.includes(a)), ...options.filter((a) => !a.startsWith(other))].map((a) => (
+        {withLegacy(PITCH_AMOUNTS, t).map((a) => (
           <option key={a} value={a}>
-            {a.startsWith(lean) ? `${a.startsWith('-') ? 'Left' : 'Right'} ${inches(a.slice(1))}` : inches(a)}
+            {inches(a)}
           </option>
         ))}
-        <optgroup label={`The other way (${other === '-' ? 'left' : 'right'})`}>
-          {options
-            .filter((a) => a.startsWith(other))
-            .map((a) => (
-              <option key={a} value={a}>
-                {`${other === '-' ? 'Left' : 'Right'} ${inches(a.slice(1))}`}
-              </option>
-            ))}
-        </optgroup>
       </select>
     );
   }
@@ -140,6 +157,19 @@ export function SlotControl({ slot, editor, label }: { slot: OverlaySlot; editor
         {withLegacy(options, v.text).map((o) => (
           <option key={o} value={o}>
             {grip && gripNumber(o) != null ? `${o}"  (${gripNumber(o)})` : `${o}"`}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  if (slot.field === 'middle_grip_brand' || slot.field === 'ring_grip_brand') {
+    return (
+      <select {...common} className="slot__picker" value={v.text} onChange={(e) => setField(slot.field, { text: e.target.value })}>
+        <option value="">–</option>
+        {withLegacy([...GRIP_BRANDS], v.text).map((t) => (
+          <option key={t} value={t}>
+            {t === 'Other' ? 'Other (write it in Notes)' : t}
           </option>
         ))}
       </select>
@@ -289,7 +319,11 @@ export function ChoiceButtons({
     editor.setField(group.field, { text: next });
     // Without grips there is no grip type or grip size, and the hole is a plain drilled size.
     if (group.field === 'finger_grips' && next !== 'grips') {
-      for (const key of ['grip_type', 'middle_grip_size', 'ring_grip_size'] as const) editor.setField(key, { text: '' });
+      for (const key of ['grip_type', ...GRIP_BRAND_FIELDS, 'middle_grip_size', 'ring_grip_size'] as const) editor.setField(key, { text: '' });
+    }
+    // Grips are Turbo unless another brand is picked.
+    if (group.field === 'finger_grips' && next === 'grips') {
+      for (const key of GRIP_BRAND_FIELDS) if (!editor.draft[key].text.trim()) editor.setField(key, { text: DEFAULT_GRIP_BRAND });
     }
   }
   return (

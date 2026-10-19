@@ -39,9 +39,8 @@ export interface OverlaySlot extends Rect {
   style: SlotStyle;
   /** A pitch box that only shows a value pitched this way. */
   dir?: 'forward' | 'reverse' | 'left' | 'right';
-  /** A lateral pitch box that shows left as minus and right as plus. */
-  signed?: boolean;
-  /** The way a finger's lateral pitch nearly always goes: toward its own side of the sheet. */
+  /** A finger's lateral pitch box: it holds the amount, and the arrow beside it (LATERAL_ARROWS) the direction,
+   *  which nearly always goes toward the finger's own side of the sheet. */
   lean?: 'left' | 'right';
   /** Draw a frame around the slot (boxes and pitch boxes). */
   framed?: boolean;
@@ -112,9 +111,10 @@ function fingerSlots(side: 'left' | 'right'): OverlaySlot[] {
     { field: `${f}_hole`, style: 'half', when: 'grips', ...half, y: HOLE_Y + 6 },
     { field: `${f}_hole`, style: 'half', when: 'no_grips', x: g.cx - 44, w: 88, h: 32, y: HOLE_Y - 16 },
     { field: `${f}_fr_pitch`, style: 'pitch', dir: 'reverse', framed: true, x: g.colX, y: 27, w: 78, h: 48 },
-    { field: `${f}_lateral_pitch`, style: 'pitch', signed: true, lean: side, framed: true, x: g.colX, y: 91, w: 78, h: 48 },
+    { field: `${f}_lateral_pitch`, style: 'pitch', lean: side, framed: true, x: g.colX, y: 91, w: 78, h: 48 },
     { field: `${f}_fr_pitch`, style: 'pitch', dir: 'forward', framed: true, x: g.colX, y: 155, w: 78, h: 48 },
     { field: `${f}_inserts`, style: 'line', x: g.cx - 52, y: 28, w: 104, h: 18 },
+    { field: `${f}_grip_brand`, style: 'line', when: 'grips', x: g.cx - 52, y: 6, w: 104, h: 18 },
     { field: `${f}_cut_to_cut`, style: 'box', framed: true, x: side === 'left' ? 119 : 289, y: 262, w: 132, h: 72 },
   ] as OverlaySlot[];
 }
@@ -161,9 +161,7 @@ export const SHEET_LABELS: SheetLabel[] = [
 export const SHEET_ARROWS: Arrow[] = [
   // Finger pitch columns.
   { x1: FINGERS.left.edgeX, y1: 8, x2: FINGERS.left.edgeX, y2: 214, heads: 'both' },
-  { x1: FINGERS.left.colX, y1: 115, x2: FINGERS.left.outX, y2: 115, heads: 'end' },
   { x1: FINGERS.right.edgeX, y1: 8, x2: FINGERS.right.edgeX, y2: 214, heads: 'both' },
-  { x1: FINGERS.right.colX + 78, y1: 115, x2: FINGERS.right.outX, y2: 115, heads: 'end' },
   // Spans: each span box points up to its finger and down to the thumb.
   { x1: 172, y1: 262, x2: 154, y2: 172, heads: 'end' },
   { x1: 368, y1: 262, x2: 386, y2: 172, heads: 'end' },
@@ -175,6 +173,27 @@ export const SHEET_ARROWS: Arrow[] = [
   { x1: 124, y1: 482, x2: 108, y2: 482, heads: 'end' },
   { x1: 412, y1: 482, x2: 428, y2: 482, heads: 'end' },
 ];
+
+/**
+ * The arrow beside each finger's lateral pitch box shows which way that finger is pitched; tapping it flips it.
+ * The line runs from the box edge outward; the head is at the outer end or, flipped, at the box.
+ */
+export interface LateralArrow {
+  field: FieldKey;
+  /** The way it points until flipped: toward the finger's own side of the sheet. */
+  lean: 'left' | 'right';
+  boxX: number;
+  outX: number;
+  y: number;
+}
+
+export const LATERAL_ARROWS: LateralArrow[] = (['left', 'right'] as const).map((side) => ({
+  field: `${finger(side)}_lateral_pitch` as FieldKey,
+  lean: side,
+  boxX: side === 'left' ? FINGERS.left.colX : FINGERS.right.colX + 78,
+  outX: FINGERS[side].outX,
+  y: 115,
+}));
 
 export const SHEET_DOTTED: DottedLine[] = [
   { x1: FINGERS.left.cx - 52, x2: FINGERS.left.cx + 52, y: 48 },

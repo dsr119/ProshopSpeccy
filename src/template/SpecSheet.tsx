@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { parseMeasurement } from '../measurements/fraction';
 import {
   FIELD_BY_KEY,
   FIELDS,
@@ -29,6 +28,7 @@ import {
   FOOTER_SIDE,
   OVERLAY_SLOTS,
   SHEET_ARROWS,
+  LATERAL_ARROWS,
   SHEET_CIRCLES,
   SHEET_DOTTED,
   SHEET_LABELS,
@@ -40,11 +40,14 @@ import {
   type ChoiceGroup,
   type OverlaySlot,
 } from './overlayConfig';
-import { ChoiceButtons, PapControl, SlotControl, SpanTypeButtons, type SheetEditor } from './SheetControls';
+import { ChoiceButtons, LateralFlipButtons, PapControl, SlotControl, SpanTypeButtons, lateralDir, type SheetEditor } from './SheetControls';
 
-/** Boxes typed into directly in edit mode (the inserts); everything else is a scroll picker. */
+/** Short text lines on the sheet picked from a list rather than typed. */
+const LISTED_LINES = new Set<FieldKey>(['middle_inserts', 'ring_inserts', 'middle_grip_brand', 'ring_grip_brand']);
+
+/** Boxes typed into directly in edit mode; everything else is a scroll picker. */
 function isTyped(slot: OverlaySlot) {
-  return FIELD_BY_KEY[slot.field].kind === 'text_short' && slot.field !== 'middle_inserts' && slot.field !== 'ring_inserts';
+  return FIELD_BY_KEY[slot.field].kind === 'text_short' && !LISTED_LINES.has(slot.field);
 }
 
 /** The span type the sheet shows; cut to cut until another is chosen. */
@@ -134,17 +137,9 @@ function forSlot(slot: OverlaySlot, d: SlotDisplay): SlotDisplay {
   return mine ? d : { state: 'blank' };
 }
 
-/** Pitches print as entered fractions; lateral finger pitch is signed (left -, right +). */
-export function pitchText(entered: string, dir: string | undefined, signed: boolean): string {
-  const parsed = parseMeasurement(entered);
-  if (!signed || !parsed.ok || parsed.value.n === 0) return entered;
-  return `${dir === 'left' ? '-' : dir === 'right' ? '+' : ''}${entered}`;
-}
-
-function slotText(slot: OverlaySlot, d: SlotDisplay): string {
+function slotText(d: SlotDisplay): string {
   if (d.state === 'na') return 'N/A';
   if (d.state === 'empty' || d.state === 'blank') return '';
-  if (slot.style === 'pitch' && d.state === 'value') return pitchText(d.text, d.dir, !!slot.signed);
   return d.text;
 }
 
@@ -167,6 +162,12 @@ export function SpecSheet({ display: shown, editor, activeField, caption }: Spec
   const choices = CHOICE_GROUPS.filter((g) => !g.when || hasGrips).map((g) => ({ group: g, value: chosenValue(g, display) }));
   const noThumb = isNoThumb(display);
   const height = noThumb ? NO_THUMB_H : TEMPLATE_H;
+  const lateral = Object.fromEntries(
+    LATERAL_ARROWS.map((a) => {
+      const d = display(a.field);
+      return [a.field, lateralDir(d.state === 'value' || d.state === 'invalid' ? d.dir : undefined, a.lean)];
+    }),
+  );
   return (
     <figure className="sheet-figure">
       <div
@@ -175,10 +176,10 @@ export function SpecSheet({ display: shown, editor, activeField, caption }: Spec
         role="group"
         aria-label={caption ?? 'Fitting spec sheet. The full list of values is available as text below.'}
       >
-        <SheetArtwork spanType={spanType} grips={hasGrips} choices={choices} height={height} />
+        <SheetArtwork spanType={spanType} grips={hasGrips} choices={choices} height={height} lateral={lateral} />
         {slots.map((slot) => {
           const d = forSlot(slot, display(slot.field));
-          const text = slotText(slot, d);
+          const text = slotText(d);
           const { size, lines } = fitFont(text, slot.w, slot.h, slot.style === 'pitch' || slot.style === 'box' ? 20 : 14);
           const typed = !!editor && d.state !== 'na' && isTyped(slot);
           const cls = [
@@ -221,6 +222,7 @@ export function SpecSheet({ display: shown, editor, activeField, caption }: Spec
           />
         )}
         {editor && choices.map(({ group, value }) => <ChoiceButtons key={group.field} group={group} value={value} editor={editor} sheetH={height} />)}
+        {editor && <LateralFlipButtons editor={editor} sheetH={height} />}
         {!noThumb && <SheetFooter display={display} editor={editor} activeField={activeField} side />}
       </div>
       {noThumb && <SheetFooter display={display} editor={editor} activeField={activeField} />}
@@ -339,12 +341,15 @@ function SheetArtwork({
   grips,
   choices,
   height,
+  lateral,
 }: {
   spanType: SpanType;
   grips: boolean;
   choices: Array<{ group: ChoiceGroup; value?: string }>;
   /** Shorter than the full sheet for a no-thumb fit; anything below it is left off. */
   height: number;
+  /** Which way each finger's lateral arrow points. */
+  lateral: Record<string, 'left' | 'right'>;
 }) {
   const types = SPAN_TYPE_ORDER;
   const first = SPAN_PICKER.cx - ((types.length - 1) * SPAN_PICKER.gap) / 2;
@@ -366,6 +371,17 @@ function SheetArtwork({
             {(a.heads === 'start' || a.heads === 'both') && <polygon points={head(a.x2, a.y2, a.x1, a.y1)} />}
           </g>
         ))}
+        {LATERAL_ARROWS.map((a) => {
+          // Pointing outward the head is at the outer end; flipped, it points back at the box.
+          const out = lateral[a.field] === a.lean;
+          const [x1, x2] = out ? [a.boxX, a.outX] : [a.outX, a.boxX];
+          return (
+            <g key={a.field} data-lateral={a.field} data-dir={lateral[a.field]}>
+              <line x1={x1} y1={a.y} x2={x2} y2={a.y} />
+              <polygon points={head(x1, a.y, x2, a.y)} />
+            </g>
+          );
+        })}
         {OVERLAY_SLOTS.filter((s) => s.framed && s.y + s.h <= height && (!s.when || (s.when === 'grips') === grips)).map((s) => (
           <rect key={`${s.field}:${s.dir ?? ''}`} x={s.x} y={s.y} width={s.w} height={s.h} rx={2} fill="#fff" />
         ))}
