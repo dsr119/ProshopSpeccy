@@ -142,3 +142,19 @@ test('printing warns when there are unsaved edits', async ({ page }) => {
   await expect(page.getByText(/Printing uses the last saved values/)).toBeVisible();
   await expect(page.locator('.print-sheet [data-field="middle_hole"]')).toHaveText('1 15/64');
 });
+
+test('on an iPad the sheet being edited takes the full width, with notes and balls under it', async ({ page }) => {
+  await loginAsStaff(page);
+  const id = await createCustomer(page, unique('Fictional iPad'));
+  // iPad Safari lays pages out about 980 wide in its desktop mode.
+  for (const width of [820, 980, 1280]) {
+    await page.setViewportSize({ width, height: 1180 });
+    await page.goto(`/customers/${id}/edit`);
+    const sheet = await page.locator('.editor__sheet').boundingBox();
+    const form = await page.locator('.editor__form').boundingBox();
+    expect(sheet!.width).toBeGreaterThan(Math.min(width - 80, 990));
+    expect(form!.y).toBeGreaterThan(sheet!.y + sheet!.height - 1);
+  }
+  await page.setViewportSize({ width: 980, height: 1180 });
+  await page.screenshot({ path: 'test-results/screens/edit-ipad.png' });
+});

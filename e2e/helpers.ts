@@ -139,7 +139,7 @@ export async function intakeSignIn(page: Page, name: string) {
     await intakeSignIn(page, 'Admin');
     await page.getByLabel('Add a name').fill(name);
     await page.getByRole('button', { name: 'Add', exact: true }).click();
-    await expect(page.getByRole('status')).toHaveText(`${name} is on the list.`);
+    await expect(page.getByRole('status').filter({ hasText: 'is on the list' })).toHaveText(`${name} is on the list.`);
     await page.getByRole('button', { name: 'Not you?' }).click();
   }
   await pick.click();

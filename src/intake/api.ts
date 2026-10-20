@@ -1,3 +1,4 @@
+import { byLastName } from '../lib/names';
 import { INTAKE_BUCKET, supabase } from '../lib/supabase';
 import { AppError, toAppError, unwrap } from '../lib/errors';
 import { ACCEPTED_TYPES, attachSheetPhoto, checkPhotoFile, uploadPhoto } from '../photos/api';
@@ -370,10 +371,10 @@ export async function getPeopleStats(): Promise<PersonStats[]> {
 export const isAdminName = (name: string) => name.trim().toLowerCase() === 'admin';
 export const ADMIN_NAME = 'Admin';
 
-/** The names people pick from to sign in on the intake page, A to Z. */
+/** The names people pick from to sign in on the intake page, A to Z by last name. */
 export async function listIntakeNames(): Promise<string[]> {
-  const rows = unwrap(await supabase.from('intake_names').select('name').order('name'));
-  return (rows as Array<{ name: string }>).map((r) => r.name);
+  const rows = unwrap(await supabase.from('intake_names').select('name'));
+  return (rows as Array<{ name: string }>).map((r) => r.name).sort(byLastName);
 }
 
 export async function addIntakeName(shopId: string, name: string): Promise<string> {
