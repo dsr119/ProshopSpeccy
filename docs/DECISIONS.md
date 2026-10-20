@@ -99,3 +99,12 @@ A typed-in paper sheet is not copied: the bowler's spec sheet record points at t
 sets `VITE_PHOTO_STORE=r2`; local tests use Supabase Storage by default, and can run against the function with
 Deno and the local stack's S3 endpoint (`R2_ENDPOINT=http://127.0.0.1:54321/storage/v1/s3`, `R2_REGION=local`, a
 `proshop-photos` bucket, and `VITE_PHOTO_STORE=r2 VITE_PHOTO_FILES_URL=http://127.0.0.1:8000`).
+
+## Current spec sheet: one digital version and one paper photo
+
+A bowler can have several digital versions and several paper sheet photos. `fits.current_revision_id` is the current
+digital version; `customers.current_photo_id` is the current paper sheet (when empty, the newest spec sheet photo).
+"Import specs" on a spec sheet photo opens it beside the editor, like intake; saving adds a new version, links it
+to the photo (`spec_photos.imported_revision_id`, since `revision_id` never changes after upload) and makes both
+current. Staff can switch either one later: "Make current" in the history points at an existing version without
+copying it (Restore still copies), and the "Current paper sheet" switch offers to switch the photo's own version too.

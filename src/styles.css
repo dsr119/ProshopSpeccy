@@ -1891,3 +1891,10 @@ a:focus-visible {
 .ai-review {
   padding: 0 1rem 2rem;
 }
+.photo-current {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin: 0.75rem 0;
+}

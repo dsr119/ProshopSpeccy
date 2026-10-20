@@ -20,6 +20,7 @@ import {
   type DraftErrors,
   type FieldDef,
   type FieldKey,
+  type Snapshot,
   type SpanType,
 } from '../measurements/schema';
 import { SpecSheet, displayFromDraft } from '../template/SpecSheet';
@@ -61,11 +62,14 @@ export interface EmbeddedEditor {
   onSaved: (result: SaveResult) => Promise<void>;
   onCancel: () => void;
   saveLabel?: string;
+  /** Values to start typing from instead of the current sheet (e.g. what the AI read off the paper). */
+  startFrom?: Snapshot | null;
 }
 
 export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
   const params = useParams();
   const customerId = embed?.customerId ?? params.customerId ?? '';
+  const startFrom = embed?.startFrom ?? null;
   const { userId } = useMembership();
   const navigate = useNavigate();
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -114,13 +118,13 @@ export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
         setChangeNote(stored.changeNote);
         setRestoredDraft(!draftsEqual(stored.draft, saved) || (!!stored.balls && !ballsEqual(stored.balls, savedBalls)));
       } else {
-        setDraft(saved);
+        setDraft(startFrom ? snapshotToDraft(startFrom) : saved);
         setExpectedLock(f.fit?.lock_version ?? 0);
       }
     } catch (e) {
       setLoadError(toAppError(e));
     }
-  }, [customerId, userId]);
+  }, [customerId, userId, startFrom]);
 
   useEffect(() => {
     if (loadedFor.current === customerId) return;

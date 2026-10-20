@@ -134,6 +134,13 @@ export async function restoreRevision(revisionId: string, expectedLockVersion: n
   return res.data as SaveResult;
 }
 
+/** Makes an earlier or later version the current digital sheet, without copying it. */
+export async function setCurrentRevision(revisionId: string, expectedLockVersion: number): Promise<SaveResult> {
+  const res = await supabase.rpc('set_current_revision', { p_revision_id: revisionId, p_expected_lock_version: expectedLockVersion });
+  if (res.error) throw toAppError(res.error);
+  return res.data as SaveResult;
+}
+
 /** Marks the revision on screen as checked against the paper sheet, or clears the mark. */
 export async function setFitConfirmed(fitId: string, revisionId: string, confirmed: boolean): Promise<FitConfirmation> {
   const res = await supabase.rpc('set_fit_confirmed', { p_fit_id: fitId, p_revision_id: revisionId, p_confirmed: confirmed });

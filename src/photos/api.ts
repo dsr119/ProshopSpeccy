@@ -7,6 +7,8 @@ export interface SpecPhoto {
   customer_id: string;
   shop_id: string;
   revision_id: string | null;
+  /** The digital version typed in from this photo with "Import specs". */
+  imported_revision_id: string | null;
   object_path: string;
   /** Where the file is: Supabase Storage or Cloudflare R2. */
   store: PhotoStore;
@@ -176,4 +178,25 @@ export async function restorePhoto(id: string): Promise<void> {
 /** The back of a paper spec sheet, where the bowler's balls are usually written. */
 export function isSheetBack(p: Pick<SpecPhoto, 'kind' | 'original_filename' | 'caption'>): boolean {
   return p.kind === 'spec_sheet' && (/^paper-spec-sheet-back\./.test(p.original_filename ?? '') || /\bback\b/i.test(p.caption ?? ''));
+}
+
+/** A spec sheet photo whose measurements can be typed in with "Import specs" (not the back of a sheet). */
+export function canImportSpecs(p: Pick<SpecPhoto, 'kind' | 'original_filename' | 'caption'>): boolean {
+  return p.kind === 'spec_sheet' && !isSheetBack(p);
+}
+
+/** The digital version that goes with this paper sheet: the one imported from it, else the one it was added with. */
+export function linkedRevisionId(p: Pick<SpecPhoto, 'imported_revision_id' | 'revision_id'>): string | null {
+  return p.imported_revision_id ?? p.revision_id;
+}
+
+/** The bowler's current paper sheet: the one picked, else the newest spec sheet photo. */
+export function currentSheetPhoto(photos: SpecPhoto[], currentPhotoId: string | null): SpecPhoto | null {
+  return photos.find((p) => p.id === currentPhotoId && p.kind === 'spec_sheet') ?? photos.find(canImportSpecs) ?? null;
+}
+
+/** Marks a spec sheet photo as the current paper sheet; with a revision, records that its specs were imported as it. */
+export async function setCurrentPhoto(photoId: string, revisionId: string | null = null): Promise<void> {
+  const res = await supabase.rpc('set_current_photo', { p_photo_id: photoId, p_revision_id: revisionId });
+  if (res.error) throw toAppError(res.error);
 }

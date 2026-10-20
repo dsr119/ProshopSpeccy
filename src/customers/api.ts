@@ -15,6 +15,8 @@ export interface Customer {
   notes: string | null;
   last_spec_at: string | null;
   last_spec_by: string | null;
+  /** The paper sheet photo picked as current; when empty the newest spec sheet photo is. */
+  current_photo_id: string | null;
   created_at: string;
   updated_at: string;
 }
