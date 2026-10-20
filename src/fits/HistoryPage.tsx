@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toAppError, type AppError } from '../lib/errors';
-import { formatDateTime } from '../lib/format';
+import { formatDateTime, formatSheetDate } from '../lib/format';
 import { useAsync } from '../lib/useAsync';
 import { Dialog, ErrorBanner, Spinner } from '../components/ui';
 import { FIELD_BY_KEY, diffSnapshots, type Snapshot } from '../measurements/schema';
 import { SheetTable, SpecSheet, displayFromSnapshot } from '../template/SpecSheet';
 import { getCustomer } from '../customers/api';
-import { canImportSpecs, currentSheetPhoto, linkedRevisionId, listPhotos, setCurrentPhoto, type SpecPhoto } from '../photos/api';
+import { canImportSpecs, currentSheetPhoto, linkedRevisionId, listPhotos, setCurrentPhoto, sheetDateOf, type SpecPhoto } from '../photos/api';
 import { FitIdentity, FitNotes } from '../customers/CustomerPage';
 import { getCurrentFit, getRevision, listRevisions, restoreRevision, setCurrentRevision, type FitRevision } from './api';
 
@@ -216,6 +216,9 @@ export function HistoryPage() {
                     {formatDateTime(r.created_at)} · {r.author_name ?? 'unknown'}
                   </span>
                 </div>
+                {sheetDateOf(data.data?.photos ?? [], r.id) && (
+                  <p>Paper sheet dated {formatSheetDate(sheetDateOf(data.data?.photos ?? [], r.id))}</p>
+                )}
                 {r.change_note && <p className="history__note">“{r.change_note}”</p>}
                 {restoredFrom && <p className="muted small">Restored from revision #{restoredFrom.revision_number}.</p>}
                 <details>
@@ -307,6 +310,7 @@ export function RevisionPage() {
             Saved {formatDateTime(r.created_at)} by {r.author_name ?? 'unknown'}
             {r.change_note ? ` · “${r.change_note}”` : ''}
           </p>
+          {sheetDateOf(paper.data?.photos ?? [], r.id) && <p>Paper sheet dated {formatSheetDate(sheetDateOf(paper.data?.photos ?? [], r.id))}</p>}
           <FitIdentity snapshot={r.snapshot} />
           {!isCurrent && current.data?.revision && (
             <details className="text-view" open>

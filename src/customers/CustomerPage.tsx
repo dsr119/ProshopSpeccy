@@ -2,14 +2,14 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMembership } from '../lib/auth';
 import { toAppError, type AppError } from '../lib/errors';
-import { formatDate, formatDateTime } from '../lib/format';
+import { formatDate, formatDateTime, formatSheetDate } from '../lib/format';
 import { addRecent, forgetRecent } from '../lib/recent';
 import { useAsync } from '../lib/useAsync';
 import { Dialog, ErrorBanner, Notice, Spinner } from '../components/ui';
 import { HAND_LABELS, THUMB_MODE_LABELS, type Hand, type Snapshot, type ThumbMode } from '../measurements/schema';
 import { SheetTable, SpecSheet, displayFromSnapshot } from '../template/SpecSheet';
 import { getCurrentFit, isConfirmed, listUncheckedSheets, setFitConfirmed, type Fit } from '../fits/api';
-import { currentSheetPhoto, listPhotos } from '../photos/api';
+import { currentSheetPhoto, listPhotos, sheetDateOf } from '../photos/api';
 import { PhotosPanel } from '../photos/PhotosPage';
 import { listBalls } from '../balls/api';
 import { BallsList } from '../balls/BallsSection';
@@ -148,7 +148,13 @@ export function CustomerPage() {
 
       <BowlerCard
         customer={c}
-        date={revision ? formatDate(revision.created_at) : null}
+        date={
+          (sheetDateOf(photoList, revision?.id) ?? paper?.sheet_date)
+            ? formatSheetDate(sheetDateOf(photoList, revision?.id) ?? paper?.sheet_date)
+            : revision
+              ? formatDate(revision.created_at)
+              : null
+        }
         hand={snapshot?.hand as string | null}
         playStyle={snapshot?.play_style as string | null}
         actions={
@@ -240,7 +246,9 @@ export function CustomerPage() {
           {(unchecked.data ?? []).map((r) => (
             <Notice key={r.id} tone="warn">
               <span>
-                Another paper sheet for this bowler was read by AI and is not checked yet (revision #{r.revision_number}).
+                Another paper sheet for this bowler
+                {sheetDateOf(photoList, r.id) ? `, dated ${formatSheetDate(sheetDateOf(photoList, r.id))},` : ''} was read by
+                AI and is not checked yet (revision #{r.revision_number}).
                 Compare it with this sheet and the paper photo, and make it current if it is right.
               </span>{' '}
               <Link to={`/customers/${c.id}/history/${r.id}`}>Compare it</Link>

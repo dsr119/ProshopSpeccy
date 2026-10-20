@@ -23,6 +23,14 @@ export interface SpecPhoto {
   confirmed_by: string | null;
   author_name: string | null;
   created_at: string;
+  /** The date written on the paper sheet (YYYY-MM-DD), when it was read off a queue photo. */
+  sheet_date: string | null;
+}
+
+/** The date written on the paper sheet that a revision was made from, if known. */
+export function sheetDateOf(photos: SpecPhoto[], revisionId: string | null | undefined): string | null {
+  if (!revisionId) return null;
+  return photos.find((p) => linkedRevisionId(p) === revisionId && p.sheet_date)?.sheet_date ?? null;
 }
 
 export type PhotoKind = 'spec_sheet' | 'ball';
