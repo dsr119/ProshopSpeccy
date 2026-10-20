@@ -9,6 +9,7 @@ import { CustomerPage } from './customers/CustomerPage';
 import { EditFitPage } from './fits/EditFitPage';
 import { HistoryPage, RevisionPage } from './fits/HistoryPage';
 import { PhotosPage } from './photos/PhotosPage';
+import { ImportSpecsPage } from './photos/ImportSpecsPage';
 import { PrintPage } from './fits/PrintPage';
 import { StaffPage } from './staff/StaffPage';
 import { AccountPage } from './staff/AccountPage';
@@ -106,6 +107,7 @@ const router = createBrowserRouter(
         { path: 'customers/:customerId/history', element: <HistoryPage /> },
         { path: 'customers/:customerId/history/:revisionId', element: <RevisionPage /> },
         { path: 'customers/:customerId/photos', element: <PhotosPage /> },
+        { path: 'customers/:customerId/photos/:photoId/import', element: <ImportSpecsPage /> },
         { path: 'customers/:customerId/print', element: <PrintPage /> },
         { path: 'staff', element: <StaffPage /> },
         { path: 'account', element: <AccountPage /> },

@@ -2,14 +2,14 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toAppError, type AppError } from '../lib/errors';
 import { formatDateTime, formatSheetDate } from '../lib/format';
-import { listPhotos, sheetDateOf } from '../photos/api';
 import { useAsync } from '../lib/useAsync';
 import { Dialog, ErrorBanner, Spinner } from '../components/ui';
 import { FIELD_BY_KEY, diffSnapshots, type Snapshot } from '../measurements/schema';
 import { SheetTable, SpecSheet, displayFromSnapshot } from '../template/SpecSheet';
 import { getCustomer } from '../customers/api';
+import { canImportSpecs, currentSheetPhoto, linkedRevisionId, listPhotos, setCurrentPhoto, sheetDateOf, type SpecPhoto } from '../photos/api';
 import { FitIdentity, FitNotes } from '../customers/CustomerPage';
-import { getCurrentFit, getRevision, listRevisions, restoreRevision, type FitRevision } from './api';
+import { getCurrentFit, getRevision, listRevisions, restoreRevision, setCurrentRevision, type FitRevision } from './api';
 
 export function ChangeTable({
   before,
@@ -103,6 +103,77 @@ function RestoreDialog({
   );
 }
 
+/** The paper sheet this version was typed in from, when there is one and it isn't already the current paper sheet. */
+function paperToSwitch(revision: FitRevision, photos: SpecPhoto[], currentPhotoId: string | null): SpecPhoto | null {
+  const paper = photos.find((p) => canImportSpecs(p) && linkedRevisionId(p) === revision.id) ?? null;
+  return paper && paper.id !== currentSheetPhoto(photos, currentPhotoId)?.id ? paper : null;
+}
+
+/** Switches the current digital sheet to this version, and its paper sheet along with it if wanted. */
+function MakeCurrentDialog({
+  revision,
+  expectedLock,
+  paper,
+  onClose,
+  onDone,
+}: {
+  revision: FitRevision;
+  expectedLock: number;
+  paper: SpecPhoto | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [alsoPaper, setAlsoPaper] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<AppError | null>(null);
+  async function apply() {
+    setBusy(true);
+    setError(null);
+    try {
+      await setCurrentRevision(revision.id, expectedLock);
+      if (paper && alsoPaper) await setCurrentPhoto(paper.id);
+      onDone();
+    } catch (e) {
+      const err = toAppError(e);
+      setError(
+        err.kind === 'conflict'
+          ? Object.assign(err, { message: 'Someone saved a newer version while you were looking. Reload the history and try again.' })
+          : err,
+      );
+      setBusy(false);
+    }
+  }
+  return (
+    <Dialog
+      open
+      title={`Make revision #${revision.revision_number} current?`}
+      onClose={onClose}
+      actions={
+        <>
+          <button type="button" className="btn btn--primary" onClick={apply} disabled={busy}>
+            {busy ? 'Saving…' : 'Make it current'}
+          </button>
+          <button type="button" className="btn" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+        </>
+      }
+    >
+      <p>
+        <strong>{revisionTitle(revision)}</strong> becomes the digital spec sheet shown for this bowler. Nothing is copied or deleted;
+        you can switch back any time.
+      </p>
+      {paper && (
+        <label className="checkbox">
+          <input type="checkbox" checked={alsoPaper} onChange={(e) => setAlsoPaper(e.target.checked)} />
+          Also make its paper sheet{paper.caption ? ` (“${paper.caption}”)` : ''} the current one
+        </label>
+      )}
+      <ErrorBanner error={error} />
+    </Dialog>
+  );
+}
+
 export function HistoryPage() {
   const { customerId = '' } = useParams();
   const navigate = useNavigate();
@@ -113,6 +184,7 @@ export function HistoryPage() {
     return { current, revisions, photos };
   }, [customerId]);
   const [restoring, setRestoring] = useState<FitRevision | null>(null);
+  const [switching, setSwitching] = useState<FitRevision | null>(null);
 
   const revisions = data.data?.revisions ?? [];
   const currentId = data.data?.current.fit?.current_revision_id;
@@ -165,9 +237,14 @@ export function HistoryPage() {
                     View full sheet
                   </Link>
                   {r.id !== currentId && (
-                    <button type="button" className="btn btn--small" onClick={() => setRestoring(r)}>
-                      Restore…
-                    </button>
+                    <>
+                      <button type="button" className="btn btn--small btn--primary" onClick={() => setSwitching(r)}>
+                        Make current…
+                      </button>
+                      <button type="button" className="btn btn--small" onClick={() => setRestoring(r)}>
+                        Restore…
+                      </button>
+                    </>
                   )}
                 </div>
               </li>
@@ -183,6 +260,15 @@ export function HistoryPage() {
           onRestored={() => navigate(`/customers/${customerId}`)}
         />
       )}
+      {switching && data.data?.current.fit && (
+        <MakeCurrentDialog
+          revision={switching}
+          expectedLock={data.data.current.fit.lock_version}
+          paper={paperToSwitch(switching, data.data.photos, customer.data?.current_photo_id ?? null)}
+          onClose={() => setSwitching(null)}
+          onDone={() => navigate(`/customers/${customerId}`)}
+        />
+      )}
     </main>
   );
 }
@@ -192,8 +278,12 @@ export function RevisionPage() {
   const navigate = useNavigate();
   const rev = useAsync(() => getRevision(revisionId), [revisionId]);
   const current = useAsync(() => getCurrentFit(customerId), [customerId]);
-  const photos = useAsync(() => listPhotos(customerId), [customerId]);
+  const paper = useAsync(async () => {
+    const [c, photos] = await Promise.all([getCustomer(customerId), listPhotos(customerId)]);
+    return { currentPhotoId: c.current_photo_id, photos };
+  }, [customerId]);
   const [restoring, setRestoring] = useState(false);
+  const [switching, setSwitching] = useState(false);
   const r = rev.data;
   const isCurrent = current.data?.fit?.current_revision_id === revisionId;
 
@@ -210,17 +300,17 @@ export function RevisionPage() {
           <h1>
             Revision #{r.revision_number} {isCurrent ? (
               <span className="tag">Current</span>
-            ) : r.revision_number > (current.data?.revision?.revision_number ?? 0) ? (
+            ) : r.author_name === 'AI reader' && r.revision_number > (current.data?.revision?.revision_number ?? 0) ? (
               <span className="tag tag--old">Not checked yet</span>
             ) : (
-              <span className="tag tag--old">Older version</span>
+              <span className="tag tag--old">Not current</span>
             )}
           </h1>
           <p className="muted">
             Saved {formatDateTime(r.created_at)} by {r.author_name ?? 'unknown'}
             {r.change_note ? ` · “${r.change_note}”` : ''}
           </p>
-          {sheetDateOf(photos.data ?? [], r.id) && <p>Paper sheet dated {formatSheetDate(sheetDateOf(photos.data ?? [], r.id))}</p>}
+          {sheetDateOf(paper.data?.photos ?? [], r.id) && <p>Paper sheet dated {formatSheetDate(sheetDateOf(paper.data?.photos ?? [], r.id))}</p>}
           <FitIdentity snapshot={r.snapshot} />
           {!isCurrent && current.data?.revision && (
             <details className="text-view" open>
@@ -237,9 +327,14 @@ export function RevisionPage() {
             </details>
           )}
           {!isCurrent && current.data?.fit && (
-            <button type="button" className="btn" onClick={() => setRestoring(true)}>
-              Restore this revision…
-            </button>
+            <div className="form__actions">
+              <button type="button" className="btn btn--primary" onClick={() => setSwitching(true)}>
+                Make this the current version…
+              </button>
+              <button type="button" className="btn" onClick={() => setRestoring(true)}>
+                Restore this revision…
+              </button>
+            </div>
           )}
           <div className="compare">
             <section className="compare__sheet">
@@ -257,6 +352,15 @@ export function RevisionPage() {
               expectedLock={current.data.fit.lock_version}
               onClose={() => setRestoring(false)}
               onRestored={() => navigate(`/customers/${customerId}`)}
+            />
+          )}
+          {switching && current.data?.fit && (
+            <MakeCurrentDialog
+              revision={r}
+              expectedLock={current.data.fit.lock_version}
+              paper={paper.data ? paperToSwitch(r, paper.data.photos, paper.data.currentPhotoId) : null}
+              onClose={() => setSwitching(false)}
+              onDone={() => navigate(`/customers/${customerId}`)}
             />
           )}
         </>

@@ -32,6 +32,7 @@ import {
   isAdminName,
 } from './api';
 import { appCustomerUrl } from './IntakeHome';
+import { PaperPhoto, type PaperSide } from '../photos/PaperPhoto';
 
 const bowlerKey = (itemId: string) => `proshop:intake:bowler:${itemId}`;
 
@@ -218,55 +219,12 @@ export function SheetPage() {
   );
 }
 
-/** The paper sheet, zoomable and turnable, kept in view while typing; front and back when it has both. */
+/** The queued paper sheet, front and back when it has both. */
 export function SheetPhoto({ item }: { item: IntakeItem }) {
-  const [side, setSide] = useState<'front' | 'back'>('front');
-  const path = side === 'back' && item.back_path ? item.back_path : item.object_path;
-  const url = useAsync(() => intakePhotoUrl(item, path), [path]);
-  const [zoom, setZoom] = useState(1);
-  const [turn, setTurn] = useState(0);
-  return (
-    <aside className="intake-photo" aria-label="Paper spec sheet">
-      <div className="intake-photo__tools">
-        {item.back_path && (
-          <div className="intake-photo__sides" role="group" aria-label="Side">
-            {(['front', 'back'] as const).map((s) => (
-              <button key={s} type="button" className="btn btn--small" aria-pressed={side === s} onClick={() => setSide(s)}>
-                {s === 'front' ? 'Front' : 'Back'}
-              </button>
-            ))}
-          </div>
-        )}
-        <button type="button" className="btn btn--small" aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(1, z - 0.5))}>
-          −
-        </button>
-        <button type="button" className="btn btn--small" aria-label="Zoom in" onClick={() => setZoom((z) => Math.min(4, z + 0.5))}>
-          +
-        </button>
-        <button type="button" className="btn btn--small" onClick={() => setTurn((t) => (t + 90) % 360)}>
-          Turn
-        </button>
-        {url.data && (
-          <a className="btn btn--small" href={url.data} target="_blank" rel="noreferrer">
-            Full size
-          </a>
-        )}
-      </div>
-      <div className="intake-photo__frame">
-        {url.error ? (
-          <ErrorBanner error={url.error} onRetry={url.reload} />
-        ) : url.data ? (
-          <img
-            src={url.data}
-            alt="Paper spec sheet"
-            style={{ width: `${zoom * 100}%`, transform: turn ? `rotate(${turn}deg)` : undefined }}
-          />
-        ) : (
-          <Spinner />
-        )}
-      </div>
-    </aside>
-  );
+  const sides: PaperSide[] = [{ key: item.object_path, label: 'Front', load: () => intakePhotoUrl(item, item.object_path) }];
+  const back = item.back_path;
+  if (back) sides.push({ key: back, label: 'Back', load: () => intakePhotoUrl(item, back) });
+  return <PaperPhoto sides={sides} />;
 }
 
 /** Step 1: check the name and phone read off the photo when there is one, else search for the bowler. */

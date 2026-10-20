@@ -1,19 +1,24 @@
 import { useEffect, useState } from 'react';
-import { Navigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { toAppError, type AppError } from '../lib/errors';
 import { formatDateTime } from '../lib/format';
 import { Dialog, ErrorBanner, Notice } from '../components/ui';
 import type { Customer } from '../customers/api';
+import { getRevision, setCurrentRevision, type Fit } from '../fits/api';
 import { ballToDraft, ballsEqual, listBalls, saveBalls, validateBalls, type BallDraft } from '../balls/api';
 import { BallsEditor } from '../balls/BallsSection';
 import {
   PHOTO_KIND_LABELS,
+  canImportSpecs,
   checkPhotoFile,
+  currentSheetPhoto,
   isSheetBack,
+  linkedRevisionId,
   listPhotos,
   photoUrls,
   removePhoto,
   restorePhoto,
+  setCurrentPhoto,
   updatePhoto,
   uploadPhoto,
   type PhotoKind,
@@ -39,6 +44,9 @@ export function PhotosPanel({
   onChange,
   startUpload,
   onBallsSaved,
+  fit,
+  initialPhotoId,
+  onCurrentChanged,
 }: {
   customer: Customer;
   revisionId: string | null;
@@ -48,9 +56,15 @@ export function PhotosPanel({
   startUpload?: boolean;
   /** Balls were saved from the back of a sheet. */
   onBallsSaved?: () => void;
+  /** The digital sheet, for switching its current version along with the paper one. */
+  fit?: Fit | null;
+  initialPhotoId?: string | null;
+  /** The current paper sheet or digital version changed. */
+  onCurrentChanged?: () => void;
 }) {
   const [urls, setUrls] = useState<Record<string, string>>({});
-  const [selected, setSelected] = useState<SpecPhoto | null>(null);
+  const [selected, setSelected] = useState<SpecPhoto | null>(() => photos.find((p) => p.id === initialPhotoId) ?? null);
+  const current = currentSheetPhoto(photos, customer.current_photo_id);
   const [showUpload, setShowUpload] = useState(!!startUpload);
   const [justUploaded, setJustUploaded] = useState(false);
   const [removing, setRemoving] = useState<SpecPhoto | null>(null);
@@ -130,6 +144,7 @@ export function PhotosPanel({
                   )}
                   <span>
                     <span className="tag">{PHOTO_KIND_LABELS[p.kind]}</span>
+                    {current?.id === p.id && <span className="tag">Current</span>}
                     {p.confirmed && <span className="tag tag--ok">Confirmed</span>}
                     <br />
                     {p.caption || 'Untitled'}
@@ -143,6 +158,14 @@ export function PhotosPanel({
           {selected && (
             <div className="photo-detail">
               <PhotoViewer photo={selected} url={urls[selected.object_path]} />
+              {canImportSpecs(selected) && (
+                <div className="photo-current no-print">
+                  <Link className="btn btn--primary" to={`/customers/${customer.id}/photos/${selected.id}/import`}>
+                    Import specs
+                  </Link>
+                  <CurrentPhotoSwitch photo={selected} isCurrent={current?.id === selected.id} fit={fit ?? null} onChanged={onCurrentChanged} />
+                </div>
+              )}
               <CaptionEditor
                 photo={selected}
                 onSaved={(p) => {
@@ -195,6 +218,92 @@ export function PhotosPanel({
         <p>It comes off this bowler. You can undo it right after.</p>
       </Dialog>
     </section>
+  );
+}
+
+/**
+ * Picks this photo as the bowler's current paper sheet. When a digital version was typed in
+ * from it, that version can become the current digital sheet at the same time.
+ */
+function CurrentPhotoSwitch({
+  photo,
+  isCurrent,
+  fit,
+  onChanged,
+}: {
+  photo: SpecPhoto;
+  isCurrent: boolean;
+  fit: Fit | null;
+  onChanged?: () => void;
+}) {
+  const [asking, setAsking] = useState<{ revisionId: string; number: number } | null>(null);
+  const [alsoDigital, setAlsoDigital] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<AppError | null>(null);
+
+  async function apply(revisionId: string | null) {
+    setBusy(true);
+    setError(null);
+    try {
+      await setCurrentPhoto(photo.id);
+      if (revisionId && fit) await setCurrentRevision(revisionId, fit.lock_version);
+      setAsking(null);
+      onChanged?.();
+    } catch (e) {
+      setError(toAppError(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function turnOn() {
+    const linked = linkedRevisionId(photo);
+    if (!linked || !fit || linked === fit.current_revision_id) return apply(null);
+    setError(null);
+    try {
+      const r = await getRevision(linked);
+      setAlsoDigital(true);
+      setAsking({ revisionId: linked, number: r.revision_number });
+    } catch {
+      // The version can't be read (e.g. removed): just switch the photo.
+      return apply(null);
+    }
+  }
+
+  return (
+    <>
+      <label className="switch">
+        <input type="checkbox" role="switch" checked={isCurrent} disabled={busy || isCurrent} onChange={() => turnOn()} />
+        <span className="switch__track" aria-hidden="true" />
+        <span>
+          Current paper sheet
+          {isCurrent && <span className="muted small"> · to change it, turn this on for another sheet</span>}
+        </span>
+      </label>
+      <ErrorBanner error={asking ? null : error} />
+      <Dialog
+        open={!!asking}
+        title="Make this the current paper sheet?"
+        onClose={() => setAsking(null)}
+        actions={
+          <>
+            <button type="button" className="btn btn--primary" disabled={busy} onClick={() => apply(alsoDigital ? asking!.revisionId : null)}>
+              {busy ? 'Saving…' : 'Make it current'}
+            </button>
+            <button type="button" className="btn" disabled={busy} onClick={() => setAsking(null)}>
+              Cancel
+            </button>
+          </>
+        }
+      >
+        <ErrorBanner error={error} />
+        <p>The digital sheet typed in from this paper is version #{asking?.number}, which is not the current one.</p>
+        <label className="checkbox">
+          <input type="checkbox" checked={alsoDigital} onChange={(e) => setAlsoDigital(e.target.checked)} />
+          Also make version #{asking?.number} the current digital sheet
+        </label>
+      </Dialog>
+    </>
   );
 }
 
