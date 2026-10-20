@@ -4,7 +4,7 @@
 // and the arrow keys move a focused wheel. Fraction wheels are drawn like a
 // ruler: the coarser the fraction, the longer its tick and the bigger its text.
 
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import { useScrollLock } from '../lib/useScrollLock';
 
 const ITEM_H = 32;
@@ -48,6 +48,7 @@ export function WheelPicker({ title, columns, initial, onDone, onClear, onClose,
     columns.map((c, i) => Math.max(0, c.options.findIndex((o) => o.value === initial[i]))),
   );
   useScrollLock();
+  const fit = useUnzoomed();
 
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -56,7 +57,7 @@ export function WheelPicker({ title, columns, initial, onDone, onClear, onClose,
   }, [onClose]);
 
   return (
-    <div className="wheel-backdrop" onClick={onClose}>
+    <div className="wheel-backdrop" style={fit} onClick={onClose}>
       <div className={`wheel-sheet${groups ? ' wheel-sheet--grouped' : ''}`} role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <div className="wheel-sheet__bar">
           <button type="button" className="wheel-sheet__action" onClick={onClear}>
@@ -95,6 +96,42 @@ export function WheelPicker({ title, columns, initial, onDone, onClear, onClose,
       </div>
     </div>
   );
+}
+
+/**
+ * When the page is pinch-zoomed, places the picker over the part of the page
+ * on screen and shrinks it back, so it shows at its normal size and nothing
+ * is cut off.
+ */
+function useUnzoomed(): CSSProperties | undefined {
+  const [style, setStyle] = useState<CSSProperties>();
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () =>
+      setStyle(
+        vv.scale > 1.01
+          ? {
+              right: 'auto',
+              bottom: 'auto',
+              left: vv.offsetLeft,
+              top: vv.offsetTop,
+              width: vv.width * vv.scale,
+              height: vv.height * vv.scale,
+              transform: `scale(${1 / vv.scale})`,
+              transformOrigin: '0 0',
+            }
+          : undefined,
+      );
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, []);
+  return style;
 }
 
 function Wheel({ column, index, onChange }: { column: WheelColumn; index: number; onChange: (index: number) => void }) {
