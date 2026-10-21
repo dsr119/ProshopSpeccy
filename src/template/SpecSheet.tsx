@@ -39,6 +39,7 @@ import {
   pctY,
   type ChoiceGroup,
   type OverlaySlot,
+  type SlotStyle,
 } from './overlayConfig';
 import { ChoiceButtons, LateralFlipButtons, PapControl, SlotControl, SpanTypeButtons, lateralDir, type SheetEditor } from './SheetControls';
 
@@ -118,10 +119,14 @@ export function displayFromDraft(draft: Draft, errors: DraftErrors): DisplayFn {
 }
 
 /** Font size (in sheet units) that keeps text inside its box, wrapping to two lines if needed. */
+/** Largest value text per kind of box, in sheet units: big enough to fill the box, as written on paper. */
+const MAX_FONT: Record<SlotStyle, number> = { pitch: 26, box: 36, half: 17, line: 14 };
+
 export function fitFont(text: string, w: number, h: number, max = 15): { size: number; lines: 1 | 2 } {
   const len = Math.max(text.length, 1);
   const charW = 0.6;
-  const oneLine = Math.min(max, (w - 8) / (len * charW), (h - 4) / 1.2);
+  // Big boxes leave a little room above and below, so large text doesn't touch the frame.
+  const oneLine = Math.min(max, (w - 8) / (len * charW), (h - 4) / (h >= 36 ? 1.45 : 1.2));
   if (oneLine >= 10) return { size: oneLine, lines: 1 };
   const twoLines = Math.min(max, ((w - 8) * 2) / (len * charW), (h - 4) / 2.4);
   return { size: Math.max(Math.min(twoLines, max), 5), lines: 2 };
@@ -180,7 +185,7 @@ export function SpecSheet({ display: shown, editor, activeField, caption }: Spec
         {slots.map((slot) => {
           const d = forSlot(slot, display(slot.field));
           const text = slotText(d);
-          const { size, lines } = fitFont(text, slot.w, slot.h, slot.style === 'pitch' || slot.style === 'box' ? 20 : 14);
+          const { size, lines } = fitFont(text, slot.w, slot.h, MAX_FONT[slot.style]);
           const typed = !!editor && d.state !== 'na' && isTyped(slot);
           const cls = [
             'slot',

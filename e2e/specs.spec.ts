@@ -51,9 +51,9 @@ test('mixed fractions, pitch directions, blank and zero save and reload in the r
   await page.getByText('All measurements as text').click();
   await expect(page.locator('.sheet-table tr', { hasText: 'Middle span actual-cut' })).toContainText('4.5');
   await expect(page.locator('.sheet-table tr', { hasText: 'Thumb oval angle' })).toContainText('15°');
-  // Blank stays blank (not zero).
-  await expect(slot(page, 'bridge')).toHaveText('–');
-  await expect(slot(page, 'bridge')).toHaveClass(/slot--empty/);
+  // Blank stays blank (not zero); the bridge starts at 1/4.
+  await expect(slot(page, 'bridge')).toHaveText('1/4');
+  await expect(slot(page, 'ring_hole')).toHaveText('–');
   await expect(slot(page, 'ring_hole')).toHaveClass(/slot--empty/);
   await expect(page.locator('.fit-identity')).toContainText('Right-handed');
   await expect(page.locator('.fit-identity')).toContainText('Conventional');
@@ -366,4 +366,23 @@ test('ball motion, one or two handed and who wrote the specs save with the sheet
   await page.locator('#field-axis_rotation').fill('95');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByText('Enter 0 to 90').first()).toBeVisible();
+});
+
+test('the bridge starts at 1/4 when none is saved, and a saved bridge is kept', async ({ page }) => {
+  await loginAsStaff(page);
+  const id = await createCustomer(page, unique('Fictional Bridge'));
+  await page.goto(`/customers/${id}/edit`);
+  await expect(page.locator('#field-bridge')).toHaveAttribute('data-value', '1/4');
+  await expect(page.getByText('No changes yet')).toBeVisible();
+  await fill(page, 'middle_hole', '3/4');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/customers/${id}$`));
+  await expect(slot(page, 'bridge')).toHaveText('1/4');
+
+  await page.getByRole('link', { name: 'Edit measurements' }).click();
+  await fill(page, 'bridge', '3/8');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/customers/${id}$`));
+  await page.getByRole('link', { name: 'Edit measurements' }).click();
+  await expect(page.locator('#field-bridge')).toHaveAttribute('data-value', '3/8');
 });
