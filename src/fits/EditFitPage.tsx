@@ -14,6 +14,7 @@ import {
   THUMB_INSERT_TYPES,
   THUMB_MODE_LABELS,
   snapshotToDraft,
+  withEditDefaults,
   GRIP_BRAND_FIELDS,
   validateDraft,
   type Draft,
@@ -104,7 +105,7 @@ export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
       const [c, f, b] = await Promise.all([getCustomer(customerId), getCurrentFit(customerId), listBalls(customerId)]);
       setCustomer(c);
       setBase(f);
-      const saved = snapshotToDraft(f.revision?.snapshot ?? null);
+      const saved = withEditDefaults(snapshotToDraft(f.revision?.snapshot ?? null));
       setBaseDraft(saved);
       const savedBalls = b.map(ballToDraft);
       setBaseBalls(savedBalls);
@@ -118,7 +119,7 @@ export function EditFitPage({ embed }: { embed?: EmbeddedEditor } = {}) {
         setChangeNote(stored.changeNote);
         setRestoredDraft(!draftsEqual(stored.draft, saved) || (!!stored.balls && !ballsEqual(stored.balls, savedBalls)));
       } else {
-        setDraft(startFrom ? snapshotToDraft(startFrom) : saved);
+        setDraft(startFrom ? withEditDefaults(snapshotToDraft(startFrom)) : saved);
         setExpectedLock(f.fit?.lock_version ?? 0);
       }
     } catch (e) {

@@ -403,6 +403,14 @@ export function snapshotToDraft(snapshot: Snapshot | null): Draft {
   ) as Draft;
 }
 
+/** Nearly every bridge is 1/4, so the editor starts there when none is saved. */
+export const DEFAULT_BRIDGE = '1/4';
+
+/** A saved sheet as the editor opens it: an empty bridge starts at 1/4. Saved values are kept. */
+export function withEditDefaults(draft: Draft): Draft {
+  return draft.bridge.text.trim() ? draft : { ...draft, bridge: { text: DEFAULT_BRIDGE, dir: '' } };
+}
+
 export type DraftErrors = Partial<Record<FieldKey, string>>;
 
 /** Validates a draft without changing it. Returns per-field messages. */
