@@ -13,6 +13,7 @@ import { ImportSpecsPage } from './photos/ImportSpecsPage';
 import { PrintPage } from './fits/PrintPage';
 import { StaffPage } from './staff/StaffPage';
 import { AccountPage } from './staff/AccountPage';
+import { BallFinderPage } from './finder/BallFinderPage';
 
 function Gate() {
   const { loading, session, membership, membershipError, signOut } = useAuth();
@@ -109,6 +110,7 @@ const router = createBrowserRouter(
         { path: 'customers/:customerId/photos', element: <PhotosPage /> },
         { path: 'customers/:customerId/photos/:photoId/import', element: <ImportSpecsPage /> },
         { path: 'customers/:customerId/print', element: <PrintPage /> },
+        { path: 'find-owner', element: <BallFinderPage /> },
         { path: 'staff', element: <StaffPage /> },
         { path: 'account', element: <AccountPage /> },
         {

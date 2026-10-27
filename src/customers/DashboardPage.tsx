@@ -112,9 +112,14 @@ export function DashboardPage() {
     <main className="page">
       <div className="dashboard__head">
         <h1>Customers</h1>
-        <Link to="/customers/new" className="btn btn--primary">
-          Add customer
-        </Link>
+        <span className="dashboard__actions">
+          <Link to="/find-owner" className="btn">
+            Find a ball's owner
+          </Link>
+          <Link to="/customers/new" className="btn btn--primary">
+            Add customer
+          </Link>
+        </span>
       </div>
 
       {justRemoved && (

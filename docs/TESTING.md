@@ -1,7 +1,7 @@
 # Tests
 
 ```sh
-npm test               # unit tests (Vitest): fraction parser, schema, overlay layout
+npm test               # unit tests (Vitest): fraction parser, schema, overlay layout, ball finder scoring
 npx supabase start     # local stack (Docker)
 npx supabase db reset  # migrations + fictional seed
 npm run test:db        # pgTAP database tests
