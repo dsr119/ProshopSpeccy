@@ -111,7 +111,6 @@ export function BallFinderPage() {
     <label className="field">
       <span className="field__label">{label}</span>
       <input
-        inputMode="decimal"
         autoComplete="off"
         list={`finder-${key}-list`}
         placeholder={`e.g. ${example}`}
@@ -135,7 +134,6 @@ export function BallFinderPage() {
         <span className="field__label">{label}</span>
         <span className="finder__pitch">
           <input
-            inputMode="decimal"
             autoComplete="off"
             list="finder-pitch-list"
             placeholder="Amount"
@@ -177,7 +175,8 @@ export function BallFinderPage() {
       </div>
       <p className="muted">
         Measure what you can off the ball. Every saved spec sheet is compared, and the closest bowlers are listed with how well
-        they match. Leave anything you didn't measure blank.
+        they match. Leave anything you didn't measure blank. To narrow it down, type a range in any box, such as{' '}
+        <strong>3 7/8 to 4 5/16</strong>: only sheets inside that range are listed.
       </p>
 
       <div className="finder__forms">
@@ -324,7 +323,7 @@ export function BallFinderPage() {
           <Spinner label="Loading spec sheets…" />
         ) : error || !sheets ? null : measuring ? (
           matches.length === 0 ? (
-            <p className="empty">No spec sheets have any of these measurements{dateFiltered ? ' in these dates' : ''}.</p>
+            <p className="empty">No spec sheets match these measurements{dateFiltered ? ' in these dates' : ''}.</p>
           ) : (
             <ul className="finder__results">
               {matches.slice(0, shown).map((m) => (

@@ -3,6 +3,8 @@
 // scores 1 when it matches the sheet exactly, falling to 0 at its tolerance.
 // A field the sheet left blank scores half, so a sheet missing values neither
 // wins nor loses on them, and the result says how many fields were compared.
+// A number typed as a range ("3 7/8 to 4 5/16") is a filter: only sheets with
+// a value inside it are listed, and those score 100% on that field.
 
 import { parseMeasurement } from '../measurements/fraction';
 import { spanField, type FieldKey, type SpanType } from '../measurements/schema';
@@ -141,6 +143,8 @@ export interface SheetMatch {
   compared: number;
   /** Fields measured off the ball. */
   measured: number;
+  /** True when the sheet is outside a range that was typed, or has no value for it. */
+  excluded: boolean;
   fields: FieldMatch[];
 }
 
@@ -154,6 +158,34 @@ function textOf(v: unknown): string | null {
 function inches(text: string): number | null {
   const p = parseMeasurement(text);
   return p.ok ? p.value.n / p.value.d : null;
+}
+
+/** Splits "3 7/8 to 4 5/16" (also "3 7/8 - 4 5/16") into its two ends; null when it isn't a range. */
+function splitRange(text: string): [string, string] | null {
+  const parts = text.trim().split(/\s+(?:to|-|–|—)\s+|\s*[–—]\s*|\s+to\s*/i);
+  return parts.length === 2 && parts[0] && parts[1] ? [parts[0], parts[1]] : null;
+}
+
+/** A typed value as a low and high amount (the same for a single value); null when it can't be read. */
+export function parseAmount(text: string): { lo: number; hi: number; range: boolean } | { error: string } | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  const ends = splitRange(trimmed);
+  if (!ends) {
+    const p = parseMeasurement(trimmed);
+    return p.ok ? { lo: p.value.n / p.value.d, hi: p.value.n / p.value.d, range: false } : { error: p.error };
+  }
+  const [a, b] = ends.map((e) => parseMeasurement(e));
+  if (!a.ok) return { error: a.error };
+  if (!b.ok) return { error: b.error };
+  const x = a.value.n / a.value.d;
+  const y = b.value.n / b.value.d;
+  return { lo: Math.min(x, y), hi: Math.max(x, y), range: true };
+}
+
+function readAmount(text: string): { lo: number; hi: number; range: boolean } | null {
+  const a = parseAmount(text);
+  return a && !('error' in a) ? a : null;
 }
 
 /** A pitch as a signed number: right and forward are positive. */
@@ -179,7 +211,7 @@ function measuredFields(ball: BallMeasurements): Array<keyof BallMeasurements> {
   for (const key of Object.keys(NUMBER_RULES) as NumberKey[]) {
     const v = ball[key];
     const text = typeof v === 'string' ? v : v.text;
-    if (text.trim() && inches(text) != null) out.push(key);
+    if (readAmount(text)) out.push(key);
   }
   return out;
 }
@@ -189,10 +221,8 @@ export function measurementErrors(ball: BallMeasurements): Partial<Record<Number
   const errors: Partial<Record<NumberKey, string>> = {};
   for (const key of Object.keys(NUMBER_RULES) as NumberKey[]) {
     const v = ball[key];
-    const text = (typeof v === 'string' ? v : v.text).trim();
-    if (!text) continue;
-    const p = parseMeasurement(text);
-    if (!p.ok) errors[key] = p.error;
+    const a = parseAmount(typeof v === 'string' ? v : v.text);
+    if (a && 'error' in a) errors[key] = a.error;
   }
   return errors;
 }
@@ -203,6 +233,7 @@ export function scoreSheet(ball: BallMeasurements, specs: SheetSpecs): SheetMatc
   let total = 0;
   let weights = 0;
   let compared = 0;
+  let excluded = false;
 
   for (const key of measuredFields(ball)) {
     if (key in CHOICE_RULES) {
@@ -222,25 +253,29 @@ export function scoreSheet(ball: BallMeasurements, specs: SheetSpecs): SheetMatc
     const raw = ball[numKey];
     const ballText = (typeof raw === 'string' ? raw : raw.text).trim();
     const ballDir = typeof raw === 'string' ? '' : raw.dir;
-    const ballAmount = inches(ballText) as number;
+    const amount = readAmount(ballText) as { lo: number; hi: number; range: boolean };
     const sheetRaw = specs[sheetKey(numKey, ball.span_type)];
     const sheetText = textOf(sheetRaw);
     const sheetAmount = sheetText == null ? null : inches(sheetText);
     const sheetDir = sheetRaw && typeof sheetRaw === 'object' ? sheetRaw.dir ?? '' : '';
+    // Without a direction on the ball, only the amount is compared.
+    const signed = !!rule.pitch && !!ballDir && amount.hi !== 0;
+    const lo = signed ? Math.min(signedPitch(amount.lo, ballDir), signedPitch(amount.hi, ballDir)) : amount.lo;
+    const hi = signed ? Math.max(signedPitch(amount.lo, ballDir), signedPitch(amount.hi, ballDir)) : amount.hi;
 
     let score = 0.5;
     if (sheetAmount != null) {
       compared++;
-      // Without a direction on the ball, only the amount is compared.
-      const diff =
-        rule.pitch && ballDir && ballAmount !== 0
-          ? Math.abs(signedPitch(ballAmount, ballDir) - signedPitch(sheetAmount, sheetDir))
-          : Math.abs(ballAmount - sheetAmount);
+      const value = signed ? signedPitch(sheetAmount, sheetDir) : sheetAmount;
+      const diff = Math.max(lo - value, 0, value - hi);
       score = Math.max(0, 1 - diff / rule.tolerance);
+      if (amount.range && diff > 1e-9) excluded = true;
+    } else if (amount.range) {
+      excluded = true;
     }
     fields.push({
       label: rule.label,
-      ball: ballDir && ballAmount !== 0 ? `${ballText} ${ballDir}` : ballText,
+      ball: signed ? `${ballText} ${ballDir}` : ballText,
       sheet: sheetText == null ? null : sheetDir && sheetDir !== 'none' ? `${sheetText} ${sheetDir}` : sheetText,
       score,
     });
@@ -253,6 +288,7 @@ export function scoreSheet(ball: BallMeasurements, specs: SheetSpecs): SheetMatc
     compared,
     measured: fields.length,
     fields,
+    excluded,
   };
 }
 
@@ -276,14 +312,14 @@ export interface BowlerMatch extends SheetMatch {
 
 /**
  * The best-scoring version for each bowler, best bowlers first. Sheets that share
- * no measured field with the ball are left out. Ties go to more fields compared,
+ * no measured field with the ball, or fall outside a typed range, are left out. Ties go to more fields compared,
  * then the current version, then the newest.
  */
 export function rankBowlers(ball: BallMeasurements, sheets: FinderSheet[]): BowlerMatch[] {
   const best = new Map<string, BowlerMatch>();
   for (const sheet of sheets) {
     const m = scoreSheet(ball, sheet.specs);
-    if (m.compared === 0) continue;
+    if (m.compared === 0 || m.excluded) continue;
     const prev = best.get(sheet.customer_id);
     const candidate: BowlerMatch = { ...m, sheet, versions: (prev?.versions ?? 0) + 1 };
     if (!prev || better(candidate, prev)) best.set(sheet.customer_id, candidate);

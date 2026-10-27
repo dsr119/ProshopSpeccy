@@ -123,6 +123,9 @@ returns every saved version of every bowler's specs (only the fields measurable 
   measurements it compared.
 - Spans are compared with the span type picked (no conversion between types). A pitch with no direction picked
   compares the amount only.
+- Any number can be typed as a range ("3 7/8 to 4 5/16", or with a spaced dash). A range is a filter: only sheets
+  with a value inside it are listed (a blank value is left out too), and they score 100% on that field. "4-3/8"
+  with no spaces is still a mixed number.
 - Each bowler is listed once, by their best-matching version, current or older (a ball may have been drilled to
   older specs).
 
