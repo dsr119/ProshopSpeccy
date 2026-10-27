@@ -108,3 +108,24 @@ digital version; `customers.current_photo_id` is the current paper sheet (when e
 to the photo (`spec_photos.imported_revision_id`, since `revision_id` never changes after upload) and makes both
 current. Staff can switch either one later: "Make current" in the history points at an existing version without
 copying it (Restore still copies), and the "Current paper sheet" switch offers to switch the photo's own version too.
+
+## Ball finder: who owns a ball left in the shop
+
+"Find a ball's owner" (`/find-owner`, linked from the Customers page) takes whatever staff can measure off a ball and
+lists the bowlers whose spec sheets are closest, with a match percentage, name and phone. `public.ball_finder_sheets`
+returns every saved version of every bowler's specs (only the fields measurable off a ball), and
+`src/finder/match.ts` scores them in the browser:
+
+- Each measured field scores 100% on an exact match, falling to 0% at its tolerance: holes and grip sizes 1/16",
+  spans and pitches 1/4", bridge and slug size 1/8". Hand, grips and thumb insert match exactly or not at all.
+- Spans count double and holes one and a half times, since they tell bowlers apart best.
+- A field the sheet left blank scores half, so missing values neither win nor lose; each result says how many
+  measurements it compared.
+- Spans are compared with the span type picked (no conversion between types). A pitch with no direction picked
+  compares the amount only.
+- Each bowler is listed once, by their best-matching version, current or older (a ball may have been drilled to
+  older specs).
+
+Two date filters narrow the sheets, with a month shortcut: the date on the paper sheet (`spec_photos.sheet_date`, read
+by the AI reader; a later edit of a version keeps the date of the sheet it was corrected from), or the day the
+version was entered in the app. With dates and no measurements, the page lists the spec sheets from those dates.
