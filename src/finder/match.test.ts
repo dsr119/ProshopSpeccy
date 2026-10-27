@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EMPTY_BALL, hasMeasurements, measurementErrors, rankBowlers, scoreSheet, type FinderSheet, type SheetSpecs } from './match';
+import { EMPTY_BALL, hasMeasurements, measurementErrors, parseAmount, rankBowlers, scoreSheet, type FinderSheet, type SheetSpecs } from './match';
 import { monthRange } from './api';
 
 const num = (entered: string, n: number, d: number) => ({ entered, n, d });
@@ -93,6 +93,35 @@ describe('rankBowlers', () => {
       sheet('three', { thumb_hole: num('1', 1, 1), middle_cut_to_cut: num('4 1/4', 17, 4), ring_cut_to_cut: num('4 3/8', 35, 8) }),
     ]);
     expect(ranked[0].sheet.customer_id).toBe('three');
+  });
+});
+
+describe('ranges', () => {
+  it('reads a range typed with to, a spaced dash or an en dash, either way round', () => {
+    expect(parseAmount('3 7/8 to 4 5/16')).toEqual({ lo: 3.875, hi: 4.3125, range: true });
+    expect(parseAmount('4 5/16 - 3 7/8')).toEqual({ lo: 3.875, hi: 4.3125, range: true });
+    expect(parseAmount('3 7/8–4 5/16')).toEqual({ lo: 3.875, hi: 4.3125, range: true });
+    // A dash with no spaces is still a mixed number.
+    expect(parseAmount('4-3/8')).toEqual({ lo: 4.375, hi: 4.375, range: false });
+    expect(parseAmount('3 7/8 to abc')).toMatchObject({ error: expect.stringMatching(/not a number/) });
+  });
+
+  it('keeps only sheets inside the range, scoring them 100% on it', () => {
+    const ball = { ...EMPTY_BALL, middle_span: '3 7/8 to 4 5/16', thumb_hole: '1' };
+    const ranked = rankBowlers(ball, [
+      sheet('inside', { middle_cut_to_cut: num('4 1/8', 33, 8), thumb_hole: num('1', 1, 1) }),
+      sheet('edge', { middle_cut_to_cut: num('4 5/16', 69, 16), thumb_hole: num('1 1/64', 65, 64) }),
+      sheet('outside', { middle_cut_to_cut: num('4 3/8', 35, 8), thumb_hole: num('1', 1, 1) }),
+      sheet('blank', { thumb_hole: num('1', 1, 1) }),
+    ]);
+    expect(ranked.map((r) => r.sheet.customer_id)).toEqual(['inside', 'edge']);
+    expect(ranked[0].percent).toBe(100);
+  });
+
+  it('works on pitches with a direction', () => {
+    const ball = { ...EMPTY_BALL, thumb_lateral_pitch: { text: '1/8 to 1/4', dir: 'left' } };
+    expect(scoreSheet(ball, { thumb_lateral_pitch: pitch('3/16', 3, 16, 'left') }).excluded).toBe(false);
+    expect(scoreSheet(ball, { thumb_lateral_pitch: pitch('3/16', 3, 16, 'right') }).excluded).toBe(true);
   });
 });
 
